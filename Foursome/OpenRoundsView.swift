@@ -39,7 +39,7 @@ struct OpenRoundsView: View {
                 if rounds.isEmpty {
                     EmptyState(systemImage: "door.left.hand.open",
                                title: "No open spots right now",
-                               body: "Post a round with an open spot and friends can jump in.")
+                               message: "Post a round with an open spot and friends can jump in.")
                 } else {
                     ForEach(rounds) { round in
                         openCard(round)

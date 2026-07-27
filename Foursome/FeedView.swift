@@ -15,7 +15,7 @@ struct FeedView: View {
                 if rounds.isEmpty {
                     EmptyState(systemImage: "figure.golf",
                                title: "No rounds yet",
-                               body: "Log your first round and it shows up here for your friends.")
+                               message: "Log your first round and it shows up here for your friends.")
                 } else {
                     ForEach(rounds) { round in
                         roundCard(round)

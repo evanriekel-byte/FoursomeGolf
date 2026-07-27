@@ -264,7 +264,10 @@ struct Card<Content: View>: View {
 struct EmptyState: View {
     let systemImage: String
     let title: String
-    let body: String
+    /// Named `message`, not `body` — a View can't have a stored `body` and a
+    /// computed `var body: some View` at the same time.
+    let message: String
+
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: systemImage)
@@ -274,7 +277,7 @@ struct EmptyState: View {
                 .background(Color.fairway50)
                 .clipShape(Circle())
             Text(title).font(.system(.headline, design: .serif))
-            Text(self.body)
+            Text(message)
                 .font(.subheadline)
                 .foregroundStyle(Color.inkSoft)
                 .multilineTextAlignment(.center)
