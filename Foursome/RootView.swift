@@ -33,6 +33,12 @@ struct RootView: View {
                                diagnostics: "query: \(players.count) · store: \(storeCount) · id: \(meID.isEmpty ? "none" : String(meID.prefix(8)))",
                                status: status,
                                onReset: reset)
+                    // Fires whenever onboarding comes back — including after a
+                    // reset, when RootView's own onAppear is long past.
+                    .onAppear {
+                        seedIfNeeded()
+                        storeCount = fetchPlayers().count
+                    }
             }
         }
         .onAppear(perform: start)
@@ -65,6 +71,10 @@ struct RootView: View {
     private func enter(name: String, homeCourseID: String?) {
         let clean = name.trimmingCharacters(in: .whitespaces)
         guard !clean.isEmpty else { return }
+
+        // Guarantee the clubhouse exists before matching a name against it.
+        // Otherwise "Marcus" silently creates a second, empty Marcus.
+        seedIfNeeded()
 
         let player: Player
 
