@@ -397,6 +397,22 @@ final class Post {
     }
 }
 
+// MARK: - Audience scope (a view filter, not a privacy control)
+
+/// Whether a screen shows the whole clubhouse or just your friends.
+///
+/// Deliberately *not* a permission: everything in scope was already visible to
+/// you. This only narrows what's on screen, so it's safe to default to
+/// everyone — a new player with no friends still lands on a populated app
+/// instead of an empty one.
+enum AudienceScope: String, CaseIterable, Identifiable {
+    case everyone
+    case friends
+
+    var id: String { rawValue }
+    var label: String { self == .everyone ? "Everyone" : "Friends" }
+}
+
 // MARK: - Small helpers
 
 extension Array where Element: Hashable {

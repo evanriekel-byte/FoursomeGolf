@@ -50,6 +50,22 @@ struct SocialGraph {
         return result
     }
 
+    /// Which players a screen should show under `scope`.
+    ///
+    /// Returns nil for `.everyone`, meaning "no filter" — distinct from an
+    /// empty set, which would mean "show nothing". Always includes the viewer,
+    /// so filtering to friends never hides your own rounds.
+    func scopedIDs(_ scope: AudienceScope, viewer: UUID) -> Set<UUID>? {
+        switch scope {
+        case .everyone:
+            return nil
+        case .friends:
+            var set = friends(of: viewer)
+            set.insert(viewer)
+            return set
+        }
+    }
+
     /// Incoming requests awaiting `playerID`'s response.
     func pendingRequests(for playerID: UUID) -> [Friendship] {
         friendships.filter { !$0.accepted && $0.addresseeID == playerID }

@@ -48,9 +48,27 @@ struct LeaderboardView: View {
     let me: Player
     @Query private var players: [Player]
     @Query private var rounds: [Round]
+    @Query private var friendships: [Friendship]
 
     @State private var period: LeaderboardPeriod = .month
     @State private var courseID: String? = nil   // nil = every course
+
+    /// Shared with the feed, so both screens show the same population.
+    @AppStorage("audienceScope") private var scopeRaw = AudienceScope.everyone.rawValue
+    private var scope: AudienceScope {
+        get { AudienceScope(rawValue: scopeRaw) ?? .everyone }
+        nonmutating set { scopeRaw = newValue.rawValue }
+    }
+
+    private var graph: SocialGraph { SocialGraph(friendships: friendships) }
+    private var friendCount: Int { graph.friends(of: me.id).count }
+    private var scopedIDs: Set<UUID>? { graph.scopedIDs(scope, viewer: me.id) }
+
+    /// The players eligible for this board.
+    private var scopedPlayers: [Player] {
+        guard let scopedIDs else { return players }
+        return players.filter { scopedIDs.contains($0.id) }
+    }
 
     private struct Row: Identifiable {
         let id: UUID
@@ -72,7 +90,7 @@ struct LeaderboardView: View {
     /// Ranked by best round to par — gross, deliberately. A net board would
     /// reward the handicap rather than the round.
     private var ranked: [Row] {
-        players.compactMap { p in
+        scopedPlayers.compactMap { p in
             let rs = scopedRounds.filter { $0.playerID == p.id }
             guard let best = rs.min(by: { $0.toPar < $1.toPar }) else { return nil }
             return Row(id: p.id, player: p, count: rs.count, best: best)
@@ -81,11 +99,20 @@ struct LeaderboardView: View {
     }
 
     private var withoutRounds: [Player] {
-        players.filter { p in !scopedRounds.contains { $0.playerID == p.id } }
+        scopedPlayers.filter { p in !scopedRounds.contains { $0.playerID == p.id } }
     }
 
     private var courseName: String? {
         courseID.flatMap { Course.by($0)?.name }
+    }
+
+    private var emptyMessage: String {
+        let when = period.label.lowercased()
+        let where_ = courseName.map { " at \($0)" } ?? ""
+        if scope == .friends {
+            return "None of your friends posted a round \(when)\(where_). Switch to Everyone to see the whole clubhouse."
+        }
+        return "No rounds \(when)\(where_). Post one and you'll top the board by default."
     }
 
     var body: some View {
@@ -99,7 +126,7 @@ struct LeaderboardView: View {
                     if ranked.isEmpty {
                         EmptyState(systemImage: "trophy",
                                    title: "Nothing posted yet",
-                                   message: "No rounds \(period.label.lowercased())\(courseName.map { " at \($0)" } ?? ""). Post one and you'll top the board by default.")
+                                   message: emptyMessage)
                     } else {
                         ForEach(Array(ranked.enumerated()), id: \.element.id) { index, row in
                             rankRow(index: index, row: row)
@@ -122,6 +149,9 @@ struct LeaderboardView: View {
 
     private var filters: some View {
         VStack(spacing: 10) {
+            ScopePicker(scope: Binding(get: { scope }, set: { scope = $0 }),
+                        friendCount: friendCount)
+
             Picker("Period", selection: $period) {
                 ForEach(LeaderboardPeriod.allCases) { Text($0.short).tag($0) }
             }

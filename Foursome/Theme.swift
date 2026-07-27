@@ -250,6 +250,36 @@ struct Avatar: View {
     }
 }
 
+// MARK: - Scope filter
+
+/// Everyone / Friends toggle. Shared by the feed and the leaderboard so the two
+/// can't end up showing different populations.
+struct ScopePicker: View {
+    @Binding var scope: AudienceScope
+    var friendCount: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(AudienceScope.allCases) { option in
+                let on = scope == option
+                Button { scope = option } label: {
+                    Text(option == .friends && friendCount > 0
+                         ? "\(option.label) (\(friendCount))"
+                         : option.label)
+                        .font(.system(.caption, design: .monospaced).weight(.semibold))
+                        .foregroundStyle(on ? .white : Color.inkSoft)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(on ? Color.fairway800 : Color.card)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(on ? Color.fairway800 : Color.paper200, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+        }
+    }
+}
+
 // MARK: - Card container
 
 struct Card<Content: View>: View {

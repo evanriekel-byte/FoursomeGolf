@@ -51,9 +51,15 @@ gives you two half-empty timelines instead of one worth opening. A post carries
 its own audience (friends of friends, club, friends, or hand-picked), resolved
 by the same `SocialGraph` that scopes open rounds.
 
-Rounds themselves stay visible to everyone. Scoping them to friends would
-disagree with the leaderboard, which is global — worth revisiting together, not
-one at a time.
+Rounds themselves stay visible to everyone, and the feed and leaderboard both
+default to showing the whole clubhouse. An Everyone / Friends filter narrows
+either one, and both read the same stored preference so they can never show
+different populations.
+
+That filter is a *view* control, not a privacy one — everything it hides was
+already visible to you. Keeping it that way is what lets the default stay
+global, so a new player with no friends still lands on a populated app rather
+than an empty one.
 
 Players can pick a home course at signup, which is optional and also decides who
 counts as a fellow member for club-only invites. Club-only is offered only on

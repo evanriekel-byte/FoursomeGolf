@@ -13,13 +13,34 @@ struct FeedView: View {
     @State private var expanded: Set<UUID> = []
     @State private var showComposer = false
 
+    /// Shared with the leaderboard, so both screens show the same population.
+    @AppStorage("audienceScope") private var scopeRaw = AudienceScope.everyone.rawValue
+    private var scope: AudienceScope {
+        get { AudienceScope(rawValue: scopeRaw) ?? .everyone }
+        nonmutating set { scopeRaw = newValue.rawValue }
+    }
+
     private var graph: SocialGraph {
         SocialGraph(friendships: friendships, groups: groups, players: players)
     }
 
-    /// Rounds stay open to everyone — the leaderboard is global, so hiding
-    /// rounds here would disagree with it. Posts are audience-scoped.
-    private var posts: [Post] { graph.visiblePosts(from: allPosts, as: me.id) }
+    private var friendCount: Int { graph.friends(of: me.id).count }
+
+    /// Everyone whose activity belongs on screen, or nil for no filter.
+    private var scopedIDs: Set<UUID>? { graph.scopedIDs(scope, viewer: me.id) }
+
+    /// Rounds are visible to everyone by permission; this only narrows the
+    /// view. Posts are audience-scoped first, then narrowed the same way.
+    private var visibleRounds: [Round] {
+        guard let scopedIDs else { return rounds }
+        return rounds.filter { scopedIDs.contains($0.playerID) }
+    }
+
+    private var posts: [Post] {
+        let allowed = graph.visiblePosts(from: allPosts, as: me.id)
+        guard let scopedIDs else { return allowed }
+        return allowed.filter { scopedIDs.contains($0.authorID) }
+    }
 
     /// One timeline, newest first, rounds and posts interleaved by time.
     private enum Item: Identifiable {
@@ -41,7 +62,7 @@ struct FeedView: View {
     }
 
     private var timeline: [Item] {
-        (rounds.map(Item.round) + posts.map(Item.post)).sorted { $0.date > $1.date }
+        (visibleRounds.map(Item.round) + posts.map(Item.post)).sorted { $0.date > $1.date }
     }
 
     private func name(_ id: UUID) -> String { players.first { $0.id == id }?.name ?? "Someone" }
@@ -69,10 +90,15 @@ struct FeedView: View {
             VStack(alignment: .leading, spacing: 12) {
                 composerPrompt
 
+                ScopePicker(scope: Binding(get: { scope }, set: { scope = $0 }),
+                            friendCount: friendCount)
+
                 if timeline.isEmpty {
                     EmptyState(systemImage: "figure.golf",
-                               title: "Nothing here yet",
-                               message: "Log a round or say something and it shows up here for your friends.")
+                               title: scope == .friends ? "Nothing from your friends yet" : "Nothing here yet",
+                               message: scope == .friends
+                                   ? "Add more friends, or switch to Everyone to see the whole clubhouse."
+                                   : "Log a round or say something and it shows up here for your friends.")
                 } else {
                     ForEach(timeline) { item in
                         switch item {
