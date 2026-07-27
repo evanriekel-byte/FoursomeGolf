@@ -1,0 +1,35 @@
+# XcodeGen spec — generates Foursome.xcodeproj from the sources in Foursome/.
+# Lets the project be created from the terminal instead of clicked together in
+# Xcode's GUI, and keeps the .xcodeproj out of git (it's a generated artifact
+# that merges badly).
+#
+#   brew install xcodegen
+#   xcodegen generate
+#   open Foursome.xcodeproj
+
+name: Foursome
+
+options:
+  bundleIdPrefix: com.foursome
+  deploymentTarget:
+    iOS: "17.0"          # SwiftData needs 17
+  createIntermediateGroups: true
+
+targets:
+  Foursome:
+    type: application
+    platform: iOS
+    sources:
+      - path: Foursome
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.foursome.app
+        PRODUCT_NAME: Foursome
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1"          # iPhone
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
