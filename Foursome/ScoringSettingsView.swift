@@ -4,11 +4,11 @@ import SwiftData
 /// Where a player sets what their scores get measured against.
 struct ScoringSettingsView: View {
     let me: Player
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var context
-    @Query private var rounds: [Round]
+    /// Performed by RootView, which signs out before deleting anything.
+    var onReset: () -> Void = {}
 
-    @AppStorage("meID") private var meID: String = ""
+    @Environment(\.dismiss) private var dismiss
+    @Query private var rounds: [Round]
 
     @State private var indexText = ""
     @State private var mode: ScoringMode = .personal
@@ -150,9 +150,10 @@ struct ScoringSettingsView: View {
     }
 
     private func resetEverything() {
-        DemoData.wipe(context)
-        meID = ""          // RootView watches this and signs out
+        // Dismiss first: the sheet is a child of the tabs that are about to be
+        // torn down, and RootView defers the delete until they're gone.
         dismiss()
+        onReset()
     }
 
     private func save() {

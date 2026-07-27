@@ -25,7 +25,7 @@ struct RootView: View {
     var body: some View {
         Group {
             if let currentPlayer {
-                MainTabs(me: currentPlayer)
+                MainTabs(me: currentPlayer, onReset: reset)
             } else {
                 OnboardingView(onEnter: enter,
                                status: status,
@@ -51,12 +51,22 @@ struct RootView: View {
     }
 
     /// Escape hatch, in case a stored id ever outlives the player it points at.
+    ///
+    /// Signs out *before* deleting anything. Wiping while the tabs are still on
+    /// screen crashes: FriendsView re-renders against groups that have just
+    /// been deleted, and reading a property on a model detached from its
+    /// context is a fatal error, not a nil. Clearing `currentPlayer` swaps in
+    /// onboarding on this render pass; the delete then runs once those views
+    /// are gone.
     private func reset() {
-        DemoData.wipe(context)
         meID = ""
         status = nil
         currentPlayer = nil
-        seedIfNeeded()
+
+        DispatchQueue.main.async {
+            DemoData.wipe(context)
+            seedIfNeeded()
+        }
     }
 
     private func enter(name: String, homeCourseID: String?) {
@@ -345,19 +355,21 @@ struct OnboardingView: View {
 
 struct MainTabs: View {
     let me: Player
+    /// Handed down so the reset runs in RootView, which can sign out first.
+    var onReset: () -> Void = {}
     @State private var showInvite = false
 
     var body: some View {
         TabView {
-            NavWrap(title: "Foursome", me: me, showInvite: $showInvite) { FeedView(me: me) }
+            NavWrap(title: "Foursome", me: me, showInvite: $showInvite, onReset: onReset) { FeedView(me: me) }
                 .tabItem { Label("Feed", systemImage: "house.fill") }
-            NavWrap(title: "Log a round", me: me, showInvite: $showInvite) { LogRoundView(me: me) }
+            NavWrap(title: "Log a round", me: me, showInvite: $showInvite, onReset: onReset) { LogRoundView(me: me) }
                 .tabItem { Label("Log", systemImage: "square.and.pencil") }
-            NavWrap(title: "Open rounds", me: me, showInvite: $showInvite) { OpenRoundsView(me: me) }
+            NavWrap(title: "Open rounds", me: me, showInvite: $showInvite, onReset: onReset) { OpenRoundsView(me: me) }
                 .tabItem { Label("Open", systemImage: "door.left.hand.open") }
-            NavWrap(title: "Friends", me: me, showInvite: $showInvite) { FriendsView(me: me) }
+            NavWrap(title: "Friends", me: me, showInvite: $showInvite, onReset: onReset) { FriendsView(me: me) }
                 .tabItem { Label("Friends", systemImage: "person.2.fill") }
-            NavWrap(title: "Leaderboard", me: me, showInvite: $showInvite) { LeaderboardView(me: me) }
+            NavWrap(title: "Leaderboard", me: me, showInvite: $showInvite, onReset: onReset) { LeaderboardView(me: me) }
                 .tabItem { Label("Board", systemImage: "trophy.fill") }
         }
         .sheet(isPresented: $showInvite) { InviteSheet(me: me) }
@@ -368,6 +380,7 @@ struct NavWrap<Content: View>: View {
     let title: String
     let me: Player
     @Binding var showInvite: Bool
+    var onReset: () -> Void = {}
     @ViewBuilder var content: Content
     @State private var showScoring = false
 
@@ -393,7 +406,7 @@ struct NavWrap<Content: View>: View {
             }
             .toolbar(.hidden, for: .navigationBar)
         }
-        .sheet(isPresented: $showScoring) { ScoringSettingsView(me: me) }
+        .sheet(isPresented: $showScoring) { ScoringSettingsView(me: me, onReset: onReset) }
     }
 
     private func headerButton(_ symbol: String, label: String,
