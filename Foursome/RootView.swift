@@ -53,11 +53,27 @@ struct RootView: View {
         ]
         seededRounds.forEach { context.insert($0) }
 
-        let g1 = OpenRound(hostID: tyler.id, courseID: "c1", date: .now.addingTimeInterval(2*day), time: "8:10 AM", spots: 4, note: "Saturday loop, casual pace.")
+        // A small graph with a deliberate shape: log in as Marcus and Tyler and
+        // Deshawn are friends, Ryan is only a friend-of-a-friend. That's enough
+        // to tell the visibility tiers apart by eye.
+        let friendships = [
+            Friendship(requesterID: marcus.id, addresseeID: tyler.id, accepted: true),
+            Friendship(requesterID: marcus.id, addresseeID: deshawn.id, accepted: true),
+            Friendship(requesterID: tyler.id, addresseeID: ryan.id, accepted: true),
+        ]
+        friendships.forEach { context.insert($0) }
+
+        let saturdayCrew = PlayerGroup(name: "Saturday regulars", ownerID: tyler.id,
+                                       memberIDs: [marcus.id, ryan.id])
+        context.insert(saturdayCrew)
+
+        let g1 = OpenRound(hostID: tyler.id, courseID: "c1", date: .now.addingTimeInterval(2*day), time: "8:10 AM", spots: 4, note: "Saturday loop, casual pace.", visibility: .friendsOfFriends)
         g1.joined = [tyler.id.uuidString, ryan.id.uuidString]
-        let g2 = OpenRound(hostID: deshawn.id, courseID: "c3", date: .now.addingTimeInterval(5*day), time: "3:40 PM", spots: 2, note: "Twilight nine after work.")
+        let g2 = OpenRound(hostID: deshawn.id, courseID: "c3", date: .now.addingTimeInterval(5*day), time: "3:40 PM", spots: 2, note: "Twilight nine after work.", visibility: .friends)
+        let g3 = OpenRound(hostID: ryan.id, courseID: "c4", date: .now.addingTimeInterval(3*day), time: "10:20 AM", spots: 4, note: "Anyone around? Need two.", visibility: .area)
         context.insert(g1)
         context.insert(g2)
+        context.insert(g3)
     }
 }
 

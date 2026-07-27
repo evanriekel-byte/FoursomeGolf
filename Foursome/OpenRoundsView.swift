@@ -4,9 +4,22 @@ import SwiftData
 struct OpenRoundsView: View {
     let me: Player
     @Environment(\.modelContext) private var context
-    @Query(sort: \OpenRound.date, order: .forward) private var rounds: [OpenRound]
+    @Query(sort: \OpenRound.date, order: .forward) private var allRounds: [OpenRound]
     @Query private var players: [Player]
+    @Query private var friendships: [Friendship]
+    @Query private var groups: [PlayerGroup]
+    @Query private var playedRounds: [Round]
     @State private var showPost = false
+
+    private var graph: SocialGraph {
+        SocialGraph(friendships: friendships, groups: groups)
+    }
+
+    /// Only the rounds this player is allowed to see.
+    private var rounds: [OpenRound] {
+        let areas = SocialGraph.areas(forPlayer: me.id, rounds: playedRounds, openRounds: allRounds)
+        return graph.visibleRounds(from: allRounds, as: me.id, viewerAreas: areas)
+    }
 
     private func name(_ idString: String) -> String {
         players.first { $0.id.uuidString == idString }?.name ?? "Someone"
@@ -80,7 +93,12 @@ struct OpenRoundsView: View {
                             .overlay(Circle().stroke(.white, lineWidth: 2))
                     }
                     Spacer()
-                    Text("host: \(name(round.hostID))").font(.caption).foregroundStyle(Color.inkSoft)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("host: \(name(round.hostID))").font(.caption).foregroundStyle(Color.inkSoft)
+                        Label(round.visibility.label, systemImage: round.visibility.systemImage)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(Color.inkSoft.opacity(0.8))
+                    }
                 }
 
                 if !isHost && !joined {
@@ -143,6 +161,7 @@ struct PostOpenRoundSheet: View {
     @State private var time = "8:00 AM"
     @State private var spots = 4
     @State private var note = ""
+    @State private var visibility: RoundVisibility = .friends
 
     private let dayOptions = [0, 1, 2, 3, 5, 7]
     private func dayLabel(_ d: Int) -> String {
@@ -191,6 +210,36 @@ struct PostOpenRoundSheet: View {
                             }
                         }
 
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Who can see this").font(.subheadline.weight(.medium)).foregroundStyle(Color.inkSoft)
+                            VStack(spacing: 0) {
+                                ForEach(Array(RoundVisibility.allCases.enumerated()), id: \.element.id) { index, option in
+                                    if index > 0 { Divider() }
+                                    Button(action: { visibility = option }) {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: option.systemImage)
+                                                .foregroundStyle(visibility == option ? Color.fairway800 : Color.inkSoft)
+                                                .frame(width: 22)
+                                            VStack(alignment: .leading, spacing: 1) {
+                                                Text(option.label).font(.subheadline.weight(.medium))
+                                                    .foregroundStyle(Color.ink)
+                                                Text(option.detail).font(.caption).foregroundStyle(Color.inkSoft)
+                                            }
+                                            Spacer()
+                                            if visibility == option {
+                                                Image(systemName: "checkmark").font(.subheadline.weight(.semibold))
+                                                    .foregroundStyle(Color.fairway800)
+                                            }
+                                        }
+                                        .padding(14)
+                                    }
+                                }
+                            }
+                            .background(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.paper200, lineWidth: 1))
+                        }
+
                         field("Note (optional)") {
                             TextField("Casual pace, walking, etc.", text: $note)
                         }
@@ -225,7 +274,8 @@ struct PostOpenRoundSheet: View {
     private func post() {
         let date = Date.now.addingTimeInterval(Double(daysOut) * 86_400)
         let round = OpenRound(hostID: me.id, courseID: courseID, date: date,
-                              time: time, spots: spots, note: note.trimmingCharacters(in: .whitespaces))
+                              time: time, spots: spots, note: note.trimmingCharacters(in: .whitespaces),
+                              visibility: visibility)
         context.insert(round)
         dismiss()
     }

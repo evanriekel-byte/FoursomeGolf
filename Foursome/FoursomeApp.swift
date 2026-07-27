@@ -8,6 +8,7 @@ struct FoursomeApp: App {
             RootView()
                 .tint(.fairway800)
         }
-        .modelContainer(for: [Player.self, Round.self, OpenRound.self])
+        .modelContainer(for: [Player.self, Round.self, OpenRound.self,
+                              Friendship.self, PlayerGroup.self])
     }
 }

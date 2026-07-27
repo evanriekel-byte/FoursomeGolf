@@ -63,6 +63,96 @@ final class Round {
     var toPar: Int { strokes - par }
 }
 
+// MARK: - Friendship (an edge in the friend graph)
+
+/// One row per pair, regardless of direction. `requesterID` is who asked, so
+/// the receiving side can be shown an accept/decline prompt.
+@Model
+final class Friendship {
+    @Attribute(.unique) var id: UUID
+    var requesterID: UUID
+    var addresseeID: UUID
+    var accepted: Bool
+    var createdAt: Date
+
+    init(requesterID: UUID, addresseeID: UUID, accepted: Bool = false) {
+        self.id = UUID()
+        self.requesterID = requesterID
+        self.addresseeID = addresseeID
+        self.accepted = accepted
+        self.createdAt = .now
+    }
+
+    func involves(_ playerID: UUID) -> Bool {
+        requesterID == playerID || addresseeID == playerID
+    }
+
+    /// The other end of the edge, given one end.
+    func other(than playerID: UUID) -> UUID? {
+        if requesterID == playerID { return addresseeID }
+        if addresseeID == playerID { return requesterID }
+        return nil
+    }
+}
+
+// MARK: - PlayerGroup (a named set of players, e.g. "Saturday regulars")
+
+@Model
+final class PlayerGroup {
+    @Attribute(.unique) var id: UUID
+    var name: String
+    var ownerID: UUID
+    var memberIDs: [String]   // player id uuidStrings, includes the owner
+    var createdAt: Date
+
+    init(name: String, ownerID: UUID, memberIDs: [UUID] = []) {
+        self.id = UUID()
+        self.name = name
+        self.ownerID = ownerID
+        self.memberIDs = ([ownerID] + memberIDs).map(\.uuidString).uniqued()
+        self.createdAt = .now
+    }
+}
+
+// MARK: - Visibility
+
+/// Who can see an open round. Ordered widest to narrowest.
+enum RoundVisibility: String, Codable, CaseIterable, Identifiable {
+    case area             // anyone playing in this course's area
+    case friendsOfFriends
+    case friends
+    case selected         // specific people and/or groups
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .area:             return "Anyone nearby"
+        case .friendsOfFriends: return "Friends of friends"
+        case .friends:          return "Friends only"
+        case .selected:         return "Specific people"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .area:             return "Shows to any player in the course's area."
+        case .friendsOfFriends: return "Your friends, and their friends."
+        case .friends:          return "Only people you've added."
+        case .selected:         return "Only the people and groups you pick."
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .area:             return "globe.americas"
+        case .friendsOfFriends: return "person.2.wave.2"
+        case .friends:          return "person.2"
+        case .selected:         return "person.crop.circle.badge.checkmark"
+        }
+    }
+}
+
 // MARK: - OpenRound (a future round with open spots)
 
 @Model
@@ -78,7 +168,20 @@ final class OpenRound {
     var pending: [String]  // player id uuidStrings
     var createdAt: Date
 
-    init(hostID: UUID, courseID: String, date: Date, time: String, spots: Int, note: String) {
+    /// Stored as the raw value so SwiftData (and later Firestore) sees a plain
+    /// string. Read through `visibility`.
+    var visibilityRaw: String
+    var invitedPlayerIDs: [String]  // used when visibility == .selected
+    var invitedGroupIDs: [String]   // used when visibility == .selected
+
+    var visibility: RoundVisibility {
+        get { RoundVisibility(rawValue: visibilityRaw) ?? .friends }
+        set { visibilityRaw = newValue.rawValue }
+    }
+
+    init(hostID: UUID, courseID: String, date: Date, time: String, spots: Int, note: String,
+         visibility: RoundVisibility = .friends,
+         invitedPlayerIDs: [UUID] = [], invitedGroupIDs: [UUID] = []) {
         self.id = UUID()
         self.hostID = hostID
         self.courseID = courseID
@@ -89,9 +192,26 @@ final class OpenRound {
         self.joined = [hostID.uuidString]
         self.pending = []
         self.createdAt = .now
+        self.visibilityRaw = visibility.rawValue
+        self.invitedPlayerIDs = invitedPlayerIDs.map(\.uuidString)
+        self.invitedGroupIDs = invitedGroupIDs.map(\.uuidString)
     }
 
     var openSpots: Int { max(0, spots - joined.count) }
+
+    /// The area this round belongs to. Derived from the course rather than the
+    /// device's location, so "nearby" needs no location permission.
+    var areaKey: String? { Course.by(courseID)?.city }
+}
+
+// MARK: - Small helpers
+
+extension Array where Element: Hashable {
+    /// Order-preserving de-duplication.
+    func uniqued() -> [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
+    }
 }
 
 // MARK: - Score helpers
