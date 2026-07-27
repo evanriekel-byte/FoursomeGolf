@@ -7,15 +7,28 @@ struct Course: Identifiable, Hashable {
     let id: String
     let name: String
     let city: String
-    let par: Int
+
+    /// Par for each of the 18 holes, in play order.
+    let holePars: [Int]
+
+    /// Derived, so course par can never drift out of step with the holes.
+    var par: Int { holePars.reduce(0, +) }
+    var frontNinePar: Int { holePars.prefix(9).reduce(0, +) }
+    var backNinePar: Int { holePars.suffix(9).reduce(0, +) }
 
     static let all: [Course] = [
-        Course(id: "c1", name: "Cobblestone Golf Course", city: "Acworth", par: 71),
-        Course(id: "c2", name: "Cherokee Run", city: "Conyers", par: 72),
-        Course(id: "c3", name: "Towne Lake Hills", city: "Woodstock", par: 72),
-        Course(id: "c4", name: "Bear's Best Atlanta", city: "Suwanee", par: 72),
-        Course(id: "c5", name: "Brookstone", city: "Acworth", par: 72),
-        Course(id: "c6", name: "The Frog at The Georgian", city: "Villa Rica", par: 72),
+        Course(id: "c1", name: "Cobblestone Golf Course", city: "Acworth",
+               holePars: [4, 4, 3, 5, 4, 4, 3, 4, 4,  4, 5, 3, 4, 4, 3, 4, 4, 5]),   // 35 + 36 = 71
+        Course(id: "c2", name: "Cherokee Run", city: "Conyers",
+               holePars: [4, 5, 3, 4, 4, 3, 5, 4, 4,  4, 3, 4, 5, 4, 4, 3, 5, 4]),   // 36 + 36 = 72
+        Course(id: "c3", name: "Towne Lake Hills", city: "Woodstock",
+               holePars: [5, 4, 4, 3, 4, 5, 3, 4, 4,  4, 4, 3, 5, 4, 3, 4, 5, 4]),   // 36 + 36 = 72
+        Course(id: "c4", name: "Bear's Best Atlanta", city: "Suwanee",
+               holePars: [4, 3, 5, 4, 4, 4, 3, 5, 4,  5, 4, 3, 4, 4, 4, 3, 4, 5]),   // 36 + 36 = 72
+        Course(id: "c5", name: "Brookstone", city: "Acworth",
+               holePars: [4, 4, 5, 3, 4, 4, 4, 3, 5,  4, 5, 4, 3, 4, 4, 5, 3, 4]),   // 36 + 36 = 72
+        Course(id: "c6", name: "The Frog at The Georgian", city: "Villa Rica",
+               holePars: [4, 4, 3, 4, 5, 4, 3, 4, 5,  4, 3, 5, 4, 4, 3, 4, 4, 5]),   // 36 + 36 = 72
     ]
 
     static func by(_ id: String) -> Course? { all.first { $0.id == id } }
@@ -50,6 +63,13 @@ final class Round {
     var date: Date
     var createdAt: Date
 
+    /// Strokes per hole, in play order. Empty when only a total was logged —
+    /// a round entered quickly, or one imported before scorecards existed.
+    /// `strokes` stays authoritative either way, so nothing has to branch on
+    /// this just to show a score.
+    var holeScores: [Int]
+
+    /// Total-only entry.
     init(playerID: UUID, courseID: String, strokes: Int, par: Int, date: Date = .now) {
         self.id = UUID()
         self.playerID = playerID
@@ -58,9 +78,28 @@ final class Round {
         self.par = par
         self.date = date
         self.createdAt = .now
+        self.holeScores = []
+    }
+
+    /// Full scorecard. The total is derived, so the two can't disagree.
+    init(playerID: UUID, courseID: String, holeScores: [Int], par: Int, date: Date = .now) {
+        self.id = UUID()
+        self.playerID = playerID
+        self.courseID = courseID
+        self.strokes = holeScores.reduce(0, +)
+        self.par = par
+        self.date = date
+        self.createdAt = .now
+        self.holeScores = holeScores
     }
 
     var toPar: Int { strokes - par }
+
+    /// Whether there's a hole-by-hole card to show.
+    var hasScorecard: Bool { holeScores.count == 18 }
+
+    var frontNine: [Int] { Array(holeScores.prefix(9)) }
+    var backNine: [Int] { Array(holeScores.suffix(9)) }
 }
 
 // MARK: - Friendship (an edge in the friend graph)

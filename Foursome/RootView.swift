@@ -44,12 +44,25 @@ struct RootView: View {
         [marcus, tyler, deshawn, ryan].forEach { context.insert($0) }
 
         let day: TimeInterval = 86_400
+
+        // Most seeded rounds carry a full card so the feed has something to
+        // expand on first run. One is left total-only on purpose, to prove the
+        // feed handles a round logged the quick way.
         let seededRounds: [Round] = [
-            Round(playerID: marcus.id, courseID: "c1", strokes: 79, par: 71, date: .now.addingTimeInterval(-day)),
-            Round(playerID: tyler.id, courseID: "c3", strokes: 71, par: 72, date: .now.addingTimeInterval(-2*day)),
-            Round(playerID: deshawn.id, courseID: "c2", strokes: 88, par: 72, date: .now.addingTimeInterval(-3*day)),
-            Round(playerID: ryan.id, courseID: "c4", strokes: 74, par: 72, date: .now.addingTimeInterval(-4*day)),
-            Round(playerID: marcus.id, courseID: "c5", strokes: 83, par: 72, date: .now.addingTimeInterval(-6*day)),
+            Round(playerID: marcus.id, courseID: "c1",
+                  holeScores: [4, 5, 3, 6, 4, 4, 4, 5, 4,  5, 5, 3, 4, 5, 3, 4, 5, 6],  // 79
+                  par: 71, date: .now.addingTimeInterval(-day)),
+            Round(playerID: tyler.id, courseID: "c3",
+                  holeScores: [5, 4, 4, 2, 4, 5, 3, 4, 4,  4, 4, 3, 5, 4, 3, 4, 4, 5],  // 71
+                  par: 72, date: .now.addingTimeInterval(-2*day)),
+            Round(playerID: deshawn.id, courseID: "c2",
+                  holeScores: [5, 7, 4, 5, 5, 4, 6, 5, 4,  5, 4, 5, 6, 5, 5, 4, 5, 4],  // 88
+                  par: 72, date: .now.addingTimeInterval(-3*day)),
+            Round(playerID: ryan.id, courseID: "c4",
+                  holeScores: [4, 3, 5, 5, 4, 4, 3, 5, 4,  5, 4, 4, 4, 4, 5, 3, 4, 4],  // 74
+                  par: 72, date: .now.addingTimeInterval(-4*day)),
+            Round(playerID: marcus.id, courseID: "c5", strokes: 83,
+                  par: 72, date: .now.addingTimeInterval(-6*day)),
         ]
         seededRounds.forEach { context.insert($0) }
 
