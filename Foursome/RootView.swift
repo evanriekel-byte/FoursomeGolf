@@ -9,15 +9,32 @@ struct RootView: View {
 
     private var me: Player? { players.first { $0.id.uuidString == meID } }
 
+    @State private var status: String?
+
     var body: some View {
         Group {
             if let me {
                 MainTabs(me: me)
             } else {
-                OnboardingView(onEnter: enter)
+                OnboardingView(onEnter: enter,
+                               diagnostics: "players: \(players.count) · saved id: \(meID.isEmpty ? "none" : String(meID.prefix(8)))",
+                               status: status,
+                               onReset: reset)
             }
         }
         .onAppear(perform: seedIfNeeded)
+    }
+
+    /// Escape hatch. A stored id that matches no player leaves onboarding
+    /// unable to advance no matter what you type, and there's otherwise no way
+    /// out of that from inside the app.
+    private func reset() {
+        for player in players { context.delete(player) }
+        try? context.save()
+        meID = ""
+        didSeed = false
+        status = nil
+        seedIfNeeded()
     }
 
     private func enter(name: String, homeCourseID: String?) {
@@ -39,16 +56,28 @@ struct RootView: View {
 
         // Save before handing off to `meID`. Without this the new player may
         // not be in `players` yet when the view re-renders, so `me` resolves to
-        // nil and onboarding just sits there looking broken.
-        try? context.save()
+        // nil and onboarding just sits there looking broken. Surfaced rather
+        // than swallowed with `try?`, because a failure here is exactly the
+        // case that presents as "the button does nothing".
+        do {
+            try context.save()
+        } catch {
+            status = "Couldn't save: \(error.localizedDescription)"
+            return
+        }
 
         meID = player.id.uuidString
     }
 
     // Demo clubhouse so the app feels alive on first run.
     private func seedIfNeeded() {
-        guard !didSeed, players.isEmpty else { return }
-        didSeed = true
+        // Gate on the database being empty, not on the flag. `didSeed` lives in
+        // UserDefaults and is written instantly, while the inserts below only
+        // reach disk on SwiftData's next autosave — so killing the app in
+        // between left the flag saying "seeded" over an empty store, and this
+        // guard then skipped seeding forever. Checking the store itself can't
+        // desync that way.
+        guard players.isEmpty else { return }
 
         let marcus = Player(name: "Marcus")
         let tyler = Player(name: "Tyler")
@@ -127,6 +156,14 @@ struct RootView: View {
         context.insert(g2)
         context.insert(g3)
         context.insert(g4)
+
+        // Persist now rather than waiting for an autosave that a kill can beat.
+        do {
+            try context.save()
+            didSeed = true
+        } catch {
+            status = "Couldn't seed the clubhouse: \(error.localizedDescription)"
+        }
     }
 }
 
@@ -134,6 +171,10 @@ struct RootView: View {
 
 struct OnboardingView: View {
     var onEnter: (String, String?) -> Void
+    var diagnostics: String = ""
+    var status: String? = nil
+    var onReset: () -> Void = {}
+
     @State private var name = ""
     @State private var homeCourseID: String? = nil
 
@@ -220,6 +261,25 @@ struct OnboardingView: View {
                 Text("Runs entirely on your phone for now. Try \"Marcus\" to log in as a seeded player.")
                     .font(.footnote).foregroundStyle(.white.opacity(0.5))
                     .padding(.top, 16)
+
+                if let status {
+                    Text(status)
+                        .font(.caption).foregroundStyle(Color.flagSoft)
+                        .padding(.top, 8)
+                }
+
+                // Temporary, while onboarding is still being shaken out.
+                HStack {
+                    Text(diagnostics)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.4))
+                    Spacer()
+                    Button("Reset", action: onReset)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(Color.flagSoft)
+                }
+                .padding(.top, 10)
+
                 Spacer()
             }
             .padding(.horizontal, 28)
