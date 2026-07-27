@@ -15,7 +15,6 @@ struct RootView: View {
     /// hand, so there's no reason to ask the store to hand it back.
     @State private var currentPlayer: Player?
     @State private var status: String?
-    @State private var storeCount = 0
 
     /// Reads the store directly. `@Query` is a view-update mechanism; this is a
     /// plain read, and it doesn't depend on the query refreshing.
@@ -29,15 +28,11 @@ struct RootView: View {
                 MainTabs(me: currentPlayer)
             } else {
                 OnboardingView(onEnter: enter,
-                               diagnostics: "query: \(players.count) · store: \(storeCount) · id: \(meID.isEmpty ? "none" : String(meID.prefix(8)))",
                                status: status,
                                onReset: reset)
                     // Fires whenever onboarding comes back — including after a
                     // reset, when RootView's own onAppear is long past.
-                    .onAppear {
-                        seedIfNeeded()
-                        storeCount = fetchPlayers().count
-                    }
+                    .onAppear(perform: seedIfNeeded)
             }
         }
         .onAppear(perform: start)
@@ -49,7 +44,6 @@ struct RootView: View {
 
     private func start() {
         seedIfNeeded()
-        storeCount = fetchPlayers().count
 
         // Restore a previous session.
         guard currentPlayer == nil, !meID.isEmpty else { return }
@@ -63,7 +57,6 @@ struct RootView: View {
         status = nil
         currentPlayer = nil
         seedIfNeeded()
-        storeCount = fetchPlayers().count
     }
 
     private func enter(name: String, homeCourseID: String?) {
@@ -99,11 +92,17 @@ struct RootView: View {
         }
 
         meID = player.id.uuidString
-        storeCount = fetchPlayers().count
 
         // Drive navigation from the object we already hold. Waiting on the
         // query to hand it back is what left this screen stuck.
         currentPlayer = player
+    }
+
+    /// The next occurrence of a weekday (1 = Sunday ... 7 = Saturday).
+    private static func next(weekday: Int) -> Date? {
+        Calendar.current.nextDate(after: .now,
+                                  matching: DateComponents(hour: 8, weekday: weekday),
+                                  matchingPolicy: .nextTime)
     }
 
     // Demo clubhouse so the app feels alive on first run.
@@ -177,14 +176,22 @@ struct RootView: View {
                                        memberIDs: [marcus.id, ryan.id])
         context.insert(saturdayCrew)
 
-        let g1 = OpenRound(hostID: tyler.id, courseID: "c1", date: .now.addingTimeInterval(2*day), time: "8:10 AM", spots: 4, note: "Saturday loop, casual pace.", visibility: .friendsOfFriends)
+        // A round whose note says Saturday should fall on a Saturday, whatever
+        // day the app is first opened.
+        let saturday = Self.next(weekday: 7) ?? .now.addingTimeInterval(6*day)
+
+        let g1 = OpenRound(hostID: tyler.id, courseID: "c1", date: saturday, time: "8:10 AM", spots: 4, note: "Saturday loop, casual pace.", visibility: .friendsOfFriends)
         g1.joined = [tyler.id.uuidString, ryan.id.uuidString]
         let g2 = OpenRound(hostID: deshawn.id, courseID: "c3", date: .now.addingTimeInterval(5*day), time: "3:40 PM", spots: 2, note: "Twilight nine after work.", visibility: .friends)
         let g3 = OpenRound(hostID: ryan.id, courseID: "c4", date: .now.addingTimeInterval(3*day), time: "10:20 AM", spots: 4, note: "Anyone around? Need two.", visibility: .area)
+
         // Marcus is friends with both authors, so signed in as Marcus you see
         // both; Tyler's club post is invisible to anyone who isn't a member.
+        // Backdated so the feed doesn't open with everything "38 seconds ago".
         let p1 = Post(authorID: deshawn.id, text: "New irons showed up. Somebody come watch me hit them badly.", audience: .friends)
         let p2 = Post(authorID: tyler.id, text: "Greens got aerated this week — play the front if you can.", audience: .club)
+        p1.createdAt = .now.addingTimeInterval(-5 * 3600)
+        p2.createdAt = .now.addingTimeInterval(-31 * 3600)
         p1.likes = [marcus.id.uuidString]
         [p1, p2].forEach { context.insert($0) }
 
@@ -223,7 +230,6 @@ enum DemoData {
 
 struct OnboardingView: View {
     var onEnter: (String, String?) -> Void
-    var diagnostics: String = ""
     var status: String? = nil
     var onReset: () -> Void = {}
 
@@ -320,15 +326,11 @@ struct OnboardingView: View {
                         .padding(.top, 8)
                 }
 
-                // Temporary, while onboarding is still being shaken out.
                 HStack {
-                    Text(diagnostics)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.4))
                     Spacer()
-                    Button("Reset", action: onReset)
+                    Button("Reset demo data", action: onReset)
                         .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(Color.flagSoft)
+                        .foregroundStyle(.white.opacity(0.45))
                 }
                 .padding(.top, 10)
 

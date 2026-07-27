@@ -73,7 +73,9 @@ struct OpenRoundsView: View {
                         .font(.system(.caption, design: .monospaced).weight(.semibold))
                         .foregroundStyle(round.openSpots > 0 ? Color.fairway800 : Color.inkSoft)
                         .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(round.openSpots > 0 ? Color.flag.opacity(0.25) : Color.paper100)
+                        // Turf green, not flagstick red — an open spot is the
+                        // good news on this card, and red read as a warning.
+                        .background(round.openSpots > 0 ? Color.dew : Color.paper100)
                         .clipShape(Capsule())
                 }
 
