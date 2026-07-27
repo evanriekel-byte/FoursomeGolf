@@ -74,6 +74,14 @@ final class Player {
     /// club-only invites.
     var homeCourseID: String?
 
+    /// Part of the seeded demo clubhouse rather than a real sign-in.
+    ///
+    /// This is what decides whether seeding has happened. A UserDefaults flag
+    /// can't: it's written separately from the data it describes, so the two
+    /// drift apart and seeding either never runs or runs twice. Asking the
+    /// store "is the demo clubhouse here?" cannot disagree with itself.
+    var isDemo: Bool = false
+
     /// Whether scores are marked against this player's own baseline or against
     /// scratch. Stored raw for SwiftData; read through `scoringMode`.
     var scoringModeRaw: String

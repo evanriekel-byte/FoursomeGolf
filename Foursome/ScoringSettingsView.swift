@@ -9,7 +9,6 @@ struct ScoringSettingsView: View {
     @Query private var rounds: [Round]
 
     @AppStorage("meID") private var meID: String = ""
-    @AppStorage("didSeed") private var didSeed: Bool = false
 
     @State private var indexText = ""
     @State private var mode: ScoringMode = .personal
@@ -152,7 +151,6 @@ struct ScoringSettingsView: View {
 
     private func resetEverything() {
         DemoData.wipe(context)
-        didSeed = false
         meID = ""          // RootView watches this and signs out
         dismiss()
     }

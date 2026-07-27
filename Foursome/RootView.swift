@@ -5,7 +5,6 @@ struct RootView: View {
     @Environment(\.modelContext) private var context
     @Query private var players: [Player]
     @AppStorage("meID") private var meID: String = ""
-    @AppStorage("didSeed") private var didSeed: Bool = false
 
     /// The signed-in player, held directly rather than looked up through the
     /// @Query above.
@@ -61,7 +60,6 @@ struct RootView: View {
     private func reset() {
         DemoData.wipe(context)
         meID = ""
-        didSeed = false
         status = nil
         currentPlayer = nil
         seedIfNeeded()
@@ -110,12 +108,11 @@ struct RootView: View {
 
     // Demo clubhouse so the app feels alive on first run.
     private func seedIfNeeded() {
-        // Gating on "the store is empty" was wrong: a failed sign-in attempt
-        // leaves a real player behind, and after that the store is never empty
-        // again, so the demo clubhouse would never arrive. The flag is the
-        // right gate now that it's only set after the seed is actually saved,
-        // which is what made it untrustworthy before.
-        guard !didSeed else { return }
+        // Ask the store whether the demo clubhouse is present, rather than
+        // trusting a flag stored somewhere else. "Is the store empty" was wrong
+        // too — a stray sign-in leaves a real player behind and blocks seeding
+        // forever. Only demo players count.
+        guard fetchPlayers().allSatisfy({ !$0.isDemo }) else { return }
 
         let marcus = Player(name: "Marcus")
         let tyler = Player(name: "Tyler")
@@ -126,6 +123,8 @@ struct RootView: View {
         // these players are seeded with one or two. A spread from low single
         // digits to mid-teens is what makes net scoring visibly different from
         // gross on the very first screen.
+        [marcus, tyler, deshawn, ryan].forEach { $0.isDemo = true }
+
         marcus.handicapIndex = 8.2
         tyler.handicapIndex = 2.4
         deshawn.handicapIndex = 16.1
@@ -198,7 +197,6 @@ struct RootView: View {
         // Persist now rather than waiting for an autosave that a kill can beat.
         do {
             try context.save()
-            didSeed = true
         } catch {
             status = "Couldn't seed the clubhouse: \(error.localizedDescription)"
         }
