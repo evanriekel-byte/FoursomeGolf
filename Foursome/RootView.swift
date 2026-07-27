@@ -7,58 +7,79 @@ struct RootView: View {
     @AppStorage("meID") private var meID: String = ""
     @AppStorage("didSeed") private var didSeed: Bool = false
 
-    private var me: Player? { players.first { $0.id.uuidString == meID } }
-
+    /// The signed-in player, held directly rather than looked up through the
+    /// @Query above.
+    ///
+    /// The query was reporting zero players immediately after a save that
+    /// succeeded, which left `me` permanently nil and onboarding unable to
+    /// advance no matter what was typed. Sign-in already has the Player in
+    /// hand, so there's no reason to ask the store to hand it back.
+    @State private var currentPlayer: Player?
     @State private var status: String?
+    @State private var storeCount = 0
+
+    /// Reads the store directly. `@Query` is a view-update mechanism; this is a
+    /// plain read, and it doesn't depend on the query refreshing.
+    private func fetchPlayers() -> [Player] {
+        (try? context.fetch(FetchDescriptor<Player>())) ?? []
+    }
 
     var body: some View {
         Group {
-            if let me {
-                MainTabs(me: me)
+            if let currentPlayer {
+                MainTabs(me: currentPlayer)
             } else {
                 OnboardingView(onEnter: enter,
-                               diagnostics: "players: \(players.count) · saved id: \(meID.isEmpty ? "none" : String(meID.prefix(8)))",
+                               diagnostics: "query: \(players.count) · store: \(storeCount) · id: \(meID.isEmpty ? "none" : String(meID.prefix(8)))",
                                status: status,
                                onReset: reset)
             }
         }
-        .onAppear(perform: seedIfNeeded)
+        .onAppear(perform: start)
     }
 
-    /// Escape hatch. A stored id that matches no player leaves onboarding
-    /// unable to advance no matter what you type, and there's otherwise no way
-    /// out of that from inside the app.
+    private func start() {
+        seedIfNeeded()
+        storeCount = fetchPlayers().count
+
+        // Restore a previous session.
+        guard currentPlayer == nil, !meID.isEmpty else { return }
+        currentPlayer = fetchPlayers().first { $0.id.uuidString == meID }
+    }
+
+    /// Escape hatch, in case a stored id ever outlives the player it points at.
     private func reset() {
-        for player in players { context.delete(player) }
+        for player in fetchPlayers() { context.delete(player) }
         try? context.save()
         meID = ""
         didSeed = false
         status = nil
+        currentPlayer = nil
         seedIfNeeded()
+        storeCount = fetchPlayers().count
     }
 
     private func enter(name: String, homeCourseID: String?) {
         let clean = name.trimmingCharacters(in: .whitespaces)
         guard !clean.isEmpty else { return }
 
-        if let existing = players.first(where: { $0.name.lowercased() == clean.lowercased() }) {
+        let player: Player
+
+        if let existing = fetchPlayers().first(where: { $0.name.lowercased() == clean.lowercased() }) {
             // Signing back in as a seeded player shouldn't wipe their course.
             if let homeCourseID, existing.homeCourseID == nil {
                 existing.homeCourseID = homeCourseID
             }
-            meID = existing.id.uuidString
-            return
+            player = existing
+        } else {
+            let new = Player(name: clean)
+            new.homeCourseID = homeCourseID
+            context.insert(new)
+            player = new
         }
 
-        let player = Player(name: clean)
-        player.homeCourseID = homeCourseID
-        context.insert(player)
-
-        // Save before handing off to `meID`. Without this the new player may
-        // not be in `players` yet when the view re-renders, so `me` resolves to
-        // nil and onboarding just sits there looking broken. Surfaced rather
-        // than swallowed with `try?`, because a failure here is exactly the
-        // case that presents as "the button does nothing".
+        // Surfaced rather than swallowed with `try?`, because a silent failure
+        // here is exactly what presents as "the button does nothing".
         do {
             try context.save()
         } catch {
@@ -67,6 +88,11 @@ struct RootView: View {
         }
 
         meID = player.id.uuidString
+        storeCount = fetchPlayers().count
+
+        // Drive navigation from the object we already hold. Waiting on the
+        // query to hand it back is what left this screen stuck.
+        currentPlayer = player
     }
 
     // Demo clubhouse so the app feels alive on first run.
@@ -77,7 +103,7 @@ struct RootView: View {
         // between left the flag saying "seeded" over an empty store, and this
         // guard then skipped seeding forever. Checking the store itself can't
         // desync that way.
-        guard players.isEmpty else { return }
+        guard fetchPlayers().isEmpty else { return }
 
         let marcus = Player(name: "Marcus")
         let tyler = Player(name: "Tyler")
