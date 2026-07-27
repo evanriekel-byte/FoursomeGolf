@@ -175,10 +175,14 @@ struct RootView: View {
         // A small graph with a deliberate shape: log in as Marcus and Tyler and
         // Deshawn are friends, Ryan is only a friend-of-a-friend. That's enough
         // to tell the visibility tiers apart by eye.
+        // Ryan's request is left pending on purpose. Signed in as Marcus it's
+        // the only way to reach the accept/decline UI — you can't be the other
+        // player, so without a seeded request that path is unreachable.
         let friendships = [
             Friendship(requesterID: marcus.id, addresseeID: tyler.id, accepted: true),
             Friendship(requesterID: marcus.id, addresseeID: deshawn.id, accepted: true),
             Friendship(requesterID: tyler.id, addresseeID: ryan.id, accepted: true),
+            Friendship(requesterID: ryan.id, addresseeID: marcus.id, accepted: false),
         ]
         friendships.forEach { context.insert($0) }
 
