@@ -70,7 +70,7 @@ struct LeaderboardView: View {
             ScoreBadge(strokes: row.best!.strokes, par: row.best!.par)
         }
         .padding(12)
-        .background(mine ? Color.fairway50 : .white)
+        .background(mine ? Color.dew : Color.card)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(mine ? Color.fairway700 : Color.paper200, lineWidth: 1))
     }
@@ -106,7 +106,7 @@ struct FlexWrap: View {
             Text(name).font(.subheadline).foregroundStyle(Color.ink)
         }
         .padding(.trailing, 12).padding(.leading, 4).padding(.vertical, 4)
-        .background(.white)
+        .background(Color.card)
         .clipShape(Capsule())
         .overlay(Capsule().stroke(Color.paper200, lineWidth: 1))
     }

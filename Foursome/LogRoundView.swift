@@ -30,7 +30,7 @@ struct LogRoundView: View {
                     .tint(.fairway800)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
-                    .background(.white)
+                    .background(Color.card)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.paper200, lineWidth: 1))
                 }
@@ -41,7 +41,7 @@ struct LogRoundView: View {
                         .keyboardType(.numberPad)
                         .font(.system(.title3, design: .monospaced))
                         .padding(14)
-                        .background(.white)
+                        .background(Color.card)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.paper200, lineWidth: 1))
                 }

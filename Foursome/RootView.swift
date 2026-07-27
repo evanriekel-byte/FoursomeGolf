@@ -85,7 +85,7 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            Color.fairway.ignoresSafeArea()
+            TurfBackground().ignoresSafeArea()
             VStack(alignment: .leading, spacing: 0) {
                 Spacer()
                 HStack(spacing: 8) {
@@ -117,9 +117,9 @@ struct OnboardingView: View {
 
                 Button(action: { onEnter(name) }) {
                     Text("Enter the clubhouse")
-                        .font(.headline).foregroundStyle(Color.fairway)
+                        .font(.headline).foregroundStyle(Color.rough)
                         .frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(Color.flag).clipShape(RoundedRectangle(cornerRadius: 12))
+                        .background(Color.sand).clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .padding(.top, 12)
 
@@ -162,16 +162,25 @@ struct NavWrap<Content: View>: View {
 
     var body: some View {
         NavigationStack {
-            ZStack { Color.paper.ignoresSafeArea(); content }
-                .navigationTitle(title)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
+            ZStack {
+                Color.paper.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    CourseHeader(eyebrow: "Saturday is a group project",
+                                 title: "Foursome",
+                                 subtitle: title) {
                         Button(action: { showInvite = true }) {
-                            Label("Invite", systemImage: "square.and.arrow.up")
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(9)
+                                .background(.white.opacity(0.15), in: Circle())
                         }
+                        .accessibilityLabel("Invite friends")
                     }
+                    content
                 }
+            }
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 }

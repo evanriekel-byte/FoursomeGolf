@@ -202,7 +202,7 @@ struct PostOpenRoundSheet: View {
                                         Text("\(s)").font(.system(.body, design: .monospaced).weight(.semibold))
                                             .frame(maxWidth: .infinity).padding(.vertical, 10)
                                             .foregroundStyle(spots == s ? .white : Color.inkSoft)
-                                            .background(spots == s ? Color.fairway800 : .white)
+                                            .background(spots == s ? Color.fairway : Color.card)
                                             .clipShape(RoundedRectangle(cornerRadius: 12))
                                             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.paper200, lineWidth: 1))
                                     }
@@ -235,7 +235,7 @@ struct PostOpenRoundSheet: View {
                                     }
                                 }
                             }
-                            .background(.white)
+                            .background(Color.card)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.paper200, lineWidth: 1))
                         }
@@ -265,7 +265,7 @@ struct PostOpenRoundSheet: View {
             Text(label).font(.subheadline.weight(.medium)).foregroundStyle(Color.inkSoft)
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14).background(.white)
+                .padding(14).background(Color.card)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.paper200, lineWidth: 1))
         }
