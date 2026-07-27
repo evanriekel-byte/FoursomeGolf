@@ -17,6 +17,12 @@ struct Course: Identifiable, Hashable {
     /// and a net score would be meaningless on any single hole.
     let strokeIndex: [Int]
 
+    /// Members-only. Gates the club-only visibility tier, which is meaningless
+    /// on a course anyone can book.
+    ///
+    /// Placeholder data — verify each course before this reaches real users.
+    var isPrivate: Bool = false
+
     /// Derived, so course par can never drift out of step with the holes.
     var par: Int { holePars.reduce(0, +) }
     var frontNinePar: Int { holePars.prefix(9).reduce(0, +) }
@@ -37,7 +43,8 @@ struct Course: Identifiable, Hashable {
                strokeIndex: [1, 15, 9, 5, 11, 7, 17, 13, 3,  10, 2, 18, 6, 12, 8, 16, 4, 14]),
         Course(id: "c5", name: "Brookstone", city: "Acworth",
                holePars:    [4, 4, 5, 3, 4, 4, 4, 3, 5,  4, 5, 4, 3, 4, 4, 5, 3, 4],   // 36 + 36 = 72
-               strokeIndex: [9, 3, 13, 17, 1, 7, 11, 15, 5,  2, 14, 6, 18, 4, 10, 12, 16, 8]),
+               strokeIndex: [9, 3, 13, 17, 1, 7, 11, 15, 5,  2, 14, 6, 18, 4, 10, 12, 16, 8],
+               isPrivate: true),
         Course(id: "c6", name: "The Frog at The Georgian", city: "Villa Rica",
                holePars:    [4, 4, 3, 4, 5, 4, 3, 4, 5,  4, 3, 5, 4, 4, 3, 4, 4, 5],   // 36 + 36 = 72
                strokeIndex: [5, 1, 15, 9, 11, 3, 17, 7, 13,  6, 18, 12, 2, 8, 16, 10, 4, 14]),
@@ -61,6 +68,12 @@ final class Player {
     /// my rounds instead".
     var handicapIndex: Double?
 
+    /// Where this player usually plays. Optional on purpose — plenty of people
+    /// have no home course, and demanding one at signup would be a wall in
+    /// front of the door. Also decides who counts as a fellow member for
+    /// club-only invites.
+    var homeCourseID: String?
+
     /// Whether scores are marked against this player's own baseline or against
     /// scratch. Stored raw for SwiftData; read through `scoringMode`.
     var scoringModeRaw: String
@@ -76,6 +89,7 @@ final class Player {
         self.handle = name.lowercased().replacingOccurrences(of: " ", with: "")
         self.createdAt = .now
         self.handicapIndex = nil
+        self.homeCourseID = nil
         self.scoringModeRaw = ScoringMode.personal.rawValue
     }
 }
@@ -206,6 +220,7 @@ final class PlayerGroup {
 enum RoundVisibility: String, Codable, CaseIterable, Identifiable {
     case area             // anyone playing in this course's area
     case friendsOfFriends
+    case club             // members whose home course is this course
     case friends
     case selected         // specific people and/or groups
 
@@ -215,6 +230,7 @@ enum RoundVisibility: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .area:             return "Anyone nearby"
         case .friendsOfFriends: return "Friends of friends"
+        case .club:             return "Members here"
         case .friends:          return "Friends only"
         case .selected:         return "Specific people"
         }
@@ -224,6 +240,7 @@ enum RoundVisibility: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .area:             return "Shows to any player in the course's area."
         case .friendsOfFriends: return "Your friends, and their friends."
+        case .club:             return "Only players whose home course is this one."
         case .friends:          return "Only people you've added."
         case .selected:         return "Only the people and groups you pick."
         }
@@ -233,9 +250,19 @@ enum RoundVisibility: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .area:             return "globe.americas"
         case .friendsOfFriends: return "person.2.wave.2"
+        case .club:             return "building.columns"
         case .friends:          return "person.2"
         case .selected:         return "person.crop.circle.badge.checkmark"
         }
+    }
+
+    /// Club-only makes no sense on a course anyone can book a tee time at.
+    func isAvailable(for course: Course?) -> Bool {
+        self != .club || (course?.isPrivate ?? false)
+    }
+
+    static func options(for course: Course?) -> [RoundVisibility] {
+        allCases.filter { $0.isAvailable(for: course) }
     }
 }
 

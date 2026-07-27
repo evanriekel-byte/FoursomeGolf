@@ -1,46 +1,117 @@
 import SwiftUI
 import SwiftData
 
+/// How far back a leaderboard reaches. Weekly and monthly boards matter because
+/// an all-time board goes stale: once someone posts a career round, the order
+/// stops moving and there's no reason to check it again.
+enum LeaderboardPeriod: String, CaseIterable, Identifiable {
+    case week, month, year, allTime
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .week:    return "This week"
+        case .month:   return "This month"
+        case .year:    return "This year"
+        case .allTime: return "All time"
+        }
+    }
+
+    var short: String {
+        switch self {
+        case .week:    return "Week"
+        case .month:   return "Month"
+        case .year:    return "Year"
+        case .allTime: return "All"
+        }
+    }
+
+    /// Start of the current calendar period, or nil for all time. Calendar
+    /// based rather than "last 7 days", so everyone's week rolls over together
+    /// and a Saturday round stays in the same week all weekend.
+    func start(now: Date = .now, calendar: Calendar = .current) -> Date? {
+        switch self {
+        case .week:
+            return calendar.dateInterval(of: .weekOfYear, for: now)?.start
+        case .month:
+            return calendar.dateInterval(of: .month, for: now)?.start
+        case .year:
+            return calendar.dateInterval(of: .year, for: now)?.start
+        case .allTime:
+            return nil
+        }
+    }
+}
+
 struct LeaderboardView: View {
     let me: Player
     @Query private var players: [Player]
     @Query private var rounds: [Round]
 
+    @State private var period: LeaderboardPeriod = .month
+    @State private var courseID: String? = nil   // nil = every course
+
     private struct Row: Identifiable {
         let id: UUID
         let player: Player
         let count: Int
-        let best: Round?
+        let best: Round
     }
 
+    /// Rounds inside the selected window and course.
+    private var scopedRounds: [Round] {
+        let cutoff = period.start()
+        return rounds.filter { round in
+            if let cutoff, round.date < cutoff { return false }
+            if let courseID, round.courseID != courseID { return false }
+            return true
+        }
+    }
+
+    /// Ranked by best round to par — gross, deliberately. A net board would
+    /// reward the handicap rather than the round.
     private var ranked: [Row] {
-        players.map { p in
-            let rs = rounds.filter { $0.playerID == p.id }
-            let best = rs.min { $0.toPar < $1.toPar }
+        players.compactMap { p in
+            let rs = scopedRounds.filter { $0.playerID == p.id }
+            guard let best = rs.min(by: { $0.toPar < $1.toPar }) else { return nil }
             return Row(id: p.id, player: p, count: rs.count, best: best)
         }
-        .filter { $0.best != nil }
-        .sorted { ($0.best!.toPar) < ($1.best!.toPar) }
+        .sorted { $0.best.toPar < $1.best.toPar }
     }
 
     private var withoutRounds: [Player] {
-        players.filter { p in !rounds.contains { $0.playerID == p.id } }
+        players.filter { p in !scopedRounds.contains { $0.playerID == p.id } }
+    }
+
+    private var courseName: String? {
+        courseID.flatMap { Course.by($0)?.name }
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                filters
+
                 VStack(alignment: .leading, spacing: 8) {
-                    Eyebrow("By best round")
-                    ForEach(Array(ranked.enumerated()), id: \.element.id) { index, row in
-                        rankRow(index: index, row: row)
+                    Eyebrow(courseName.map { "Best round · \($0)" } ?? "Best round · every course")
+
+                    if ranked.isEmpty {
+                        EmptyState(systemImage: "trophy",
+                                   title: "Nothing posted yet",
+                                   message: "No rounds \(period.label.lowercased())\(courseName.map { " at \($0)" } ?? ""). Post one and you'll top the board by default.")
+                    } else {
+                        ForEach(Array(ranked.enumerated()), id: \.element.id) { index, row in
+                            rankRow(index: index, row: row)
+                        }
                     }
                 }
 
                 if !withoutRounds.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         Eyebrow("In the clubhouse")
-                        Text("Players (\(players.count))").font(.system(.headline, design: .serif))
+                        Text("Yet to post (\(withoutRounds.count))")
+                            .font(.system(.headline, design: .serif))
                         FlexWrap(items: withoutRounds.map { $0.name })
                     }
                 }
@@ -49,8 +120,42 @@ struct LeaderboardView: View {
         }
     }
 
+    private var filters: some View {
+        VStack(spacing: 10) {
+            Picker("Period", selection: $period) {
+                ForEach(LeaderboardPeriod.allCases) { Text($0.short).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            HStack {
+                Text("Course").font(.subheadline).foregroundStyle(Color.inkSoft)
+                Spacer()
+                Picker("Course", selection: $courseID) {
+                    Text("Every course").tag(String?.none)
+                    ForEach(Course.all) { c in
+                        Text(c.name).tag(String?.some(c.id))
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(.fairway800)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 6)
+            .background(Color.card)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.paper200, lineWidth: 1))
+        }
+    }
+
     private func rankRow(index: Int, row: Row) -> some View {
         let mine = row.player.id == me.id
+        // Where the best round happened only matters when the board spans
+        // courses; scoped to one, it's the same line on every row.
+        let detail: String = {
+            let n = "\(row.count) round\(row.count == 1 ? "" : "s")"
+            guard courseID == nil else { return n }
+            return "\(n) · best at \(Course.by(row.best.courseID)?.city ?? "—")"
+        }()
+
         return HStack(spacing: 12) {
             Text("\(index + 1)")
                 .font(.system(.subheadline, design: .monospaced).weight(.semibold))
@@ -63,11 +168,16 @@ struct LeaderboardView: View {
                         Text("YOU").font(.system(.caption2, design: .monospaced)).foregroundStyle(Color.fairway700)
                     }
                 }
-                Text("\(row.count) round\(row.count == 1 ? "" : "s") · best at \(Course.by(row.best!.courseID)?.city ?? "—")")
+                Text(detail)
                     .font(.system(.caption, design: .monospaced)).foregroundStyle(Color.inkSoft)
             }
             Spacer()
-            ScoreBadge(strokes: row.best!.strokes, par: row.best!.par)
+            VStack(spacing: 2) {
+                ScoreBadge(strokes: row.best.strokes, par: row.best.par)
+                Text(toParText(row.best.toPar))
+                    .font(.system(size: 10, design: .monospaced).weight(.semibold))
+                    .foregroundStyle(row.best.toPar < 0 ? Color.fairway700 : Color.inkSoft)
+            }
         }
         .padding(12)
         .background(mine ? Color.dew : Color.card)

@@ -36,7 +36,18 @@ All sources live in `Foursome/`.
 
 Everything you tap is real and persists on-device via SwiftData. The one thing that's simulated is other people: the seeded friends and their rounds are demo data, so "friends see each other's rounds" isn't truly multiplayer yet. That's the next milestone.
 
-Not modeled yet, from the intended product: an explicit friend graph (add/accept friends), groups, and invite visibility scoping (public to an area / friends-of-friends / friends only / specific people). Today every player sees every round and every open round. `OpenRound` has no audience field, and there is no `Friendship` or `Group` type.
+The friend graph, groups, and invite visibility are modeled and enforced. An
+open round goes out to one of five audiences — anyone nearby, friends of
+friends, members at the course, friends only, or hand-picked people and groups —
+and `SocialGraph` resolves who that actually is.
+
+Still missing: **there is no screen for adding a friend.** The graph is
+enforced everywhere but can only be populated by the seed data, so a new player
+has no way to build one. That's the next real gap.
+
+Players can pick a home course at signup, which is optional and also decides who
+counts as a fellow member for club-only invites. Club-only is offered only on
+courses flagged private, since it means nothing on a course anyone can book.
 
 ## Handicaps and GHIN
 

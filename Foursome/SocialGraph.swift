@@ -12,10 +12,19 @@ import Foundation
 struct SocialGraph {
     let friendships: [Friendship]
     let groups: [PlayerGroup]
+    /// Needed only to resolve club-only visibility, which depends on who calls
+    /// a course home.
+    let players: [Player]
 
-    init(friendships: [Friendship], groups: [PlayerGroup] = []) {
+    init(friendships: [Friendship], groups: [PlayerGroup] = [], players: [Player] = []) {
         self.friendships = friendships
         self.groups = groups
+        self.players = players
+    }
+
+    /// Players whose home course is `courseID`.
+    func members(ofCourse courseID: String) -> Set<UUID> {
+        Set(players.filter { $0.homeCourseID == courseID }.map(\.id))
     }
 
     // MARK: - Graph queries
@@ -80,6 +89,11 @@ struct SocialGraph {
         case .friendsOfFriends:
             var set = friends(of: host)
             set.formUnion(friendsOfFriends(of: host))
+            set.insert(host)
+            return set
+
+        case .club:
+            var set = members(ofCourse: round.courseID)
             set.insert(host)
             return set
 

@@ -20,14 +20,19 @@ struct RootView: View {
         .onAppear(perform: seedIfNeeded)
     }
 
-    private func enter(name: String) {
+    private func enter(name: String, homeCourseID: String?) {
         let clean = name.trimmingCharacters(in: .whitespaces)
         guard !clean.isEmpty else { return }
         if let existing = players.first(where: { $0.name.lowercased() == clean.lowercased() }) {
+            // Signing back in as a seeded player shouldn't wipe their course.
+            if let homeCourseID, existing.homeCourseID == nil {
+                existing.homeCourseID = homeCourseID
+            }
             meID = existing.id.uuidString
             return
         }
         let player = Player(name: clean)
+        player.homeCourseID = homeCourseID
         context.insert(player)
         meID = player.id.uuidString
     }
@@ -50,6 +55,14 @@ struct RootView: View {
         tyler.handicapIndex = 2.4
         deshawn.handicapIndex = 16.1
         ryan.handicapIndex = 5.0
+
+        // Marcus and Tyler are members at Brookstone (private); Deshawn plays
+        // elsewhere and Ryan has no home course. That's what makes a club-only
+        // round visibly different: as Marcus you see it, as Deshawn you don't.
+        marcus.homeCourseID = "c5"
+        tyler.homeCourseID = "c5"
+        deshawn.homeCourseID = "c2"
+        ryan.homeCourseID = nil
 
         [marcus, tyler, deshawn, ryan].forEach { context.insert($0) }
 
@@ -94,17 +107,20 @@ struct RootView: View {
         g1.joined = [tyler.id.uuidString, ryan.id.uuidString]
         let g2 = OpenRound(hostID: deshawn.id, courseID: "c3", date: .now.addingTimeInterval(5*day), time: "3:40 PM", spots: 2, note: "Twilight nine after work.", visibility: .friends)
         let g3 = OpenRound(hostID: ryan.id, courseID: "c4", date: .now.addingTimeInterval(3*day), time: "10:20 AM", spots: 4, note: "Anyone around? Need two.", visibility: .area)
+        let g4 = OpenRound(hostID: tyler.id, courseID: "c5", date: .now.addingTimeInterval(4*day), time: "9:00 AM", spots: 4, note: "Member guest warm-up. Members only.", visibility: .club)
         context.insert(g1)
         context.insert(g2)
         context.insert(g3)
+        context.insert(g4)
     }
 }
 
 // MARK: - Onboarding
 
 struct OnboardingView: View {
-    var onEnter: (String) -> Void
+    var onEnter: (String, String?) -> Void
     @State private var name = ""
+    @State private var homeCourseID: String? = nil
 
     var body: some View {
         ZStack {
@@ -135,10 +151,35 @@ struct OnboardingView: View {
                     .background(Color.black.opacity(0.25))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.fairway700, lineWidth: 1))
-                    .submitLabel(.go)
-                    .onSubmit { onEnter(name) }
+                    .submitLabel(.next)
 
-                Button(action: { onEnter(name) }) {
+                // Optional on purpose: asking for it is useful, requiring it
+                // would be a wall in front of the door.
+                HStack {
+                    Text("Home course").foregroundStyle(.white.opacity(0.75))
+                    Spacer()
+                    Picker("Home course", selection: $homeCourseID) {
+                        Text("Skip for now").tag(String?.none)
+                        ForEach(Course.all) { c in
+                            Text(c.isPrivate ? "\(c.name) (private)" : c.name)
+                                .tag(String?.some(c.id))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .tint(Color.flagSoft)
+                }
+                .font(.subheadline)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(Color.black.opacity(0.25))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.fairway700, lineWidth: 1))
+                .padding(.top, 10)
+
+                Text("Optional. Members at a private club can post rounds only their fellow members see.")
+                    .font(.caption).foregroundStyle(.white.opacity(0.55))
+                    .padding(.top, 6)
+
+                Button(action: { onEnter(name, homeCourseID) }) {
                     Text("Enter the clubhouse")
                         .font(.headline).foregroundStyle(Color.rough)
                         .frame(maxWidth: .infinity).padding(.vertical, 14)

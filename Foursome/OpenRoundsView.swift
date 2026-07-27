@@ -12,7 +12,7 @@ struct OpenRoundsView: View {
     @State private var showPost = false
 
     private var graph: SocialGraph {
-        SocialGraph(friendships: friendships, groups: groups)
+        SocialGraph(friendships: friendships, groups: groups, players: players)
     }
 
     /// Only the rounds this player is allowed to see.
@@ -163,6 +163,9 @@ struct PostOpenRoundSheet: View {
     @State private var note = ""
     @State private var visibility: RoundVisibility = .friends
 
+    private var selectedCourse: Course? { Course.by(courseID) }
+    private var visibilityOptions: [RoundVisibility] { .options(for: selectedCourse) }
+
     private let dayOptions = [0, 1, 2, 3, 5, 7]
     private func dayLabel(_ d: Int) -> String {
         if d == 0 { return "Today" }
@@ -213,7 +216,7 @@ struct PostOpenRoundSheet: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Who can see this").font(.subheadline.weight(.medium)).foregroundStyle(Color.inkSoft)
                             VStack(spacing: 0) {
-                                ForEach(Array(RoundVisibility.allCases.enumerated()), id: \.element.id) { index, option in
+                                ForEach(Array(visibilityOptions.enumerated()), id: \.element.id) { index, option in
                                     if index > 0 { Divider() }
                                     Button(action: { visibility = option }) {
                                         HStack(spacing: 12) {
@@ -256,6 +259,10 @@ struct PostOpenRoundSheet: View {
             }
             .navigationTitle("Post an open round")
             .navigationBarTitleDisplayMode(.inline)
+            // Switching to a public course strands a club-only selection.
+            .onChange(of: courseID) { _, _ in
+                if !visibility.isAvailable(for: selectedCourse) { visibility = .friends }
+            }
             .toolbar { ToolbarItem(placement: .topBarLeading) { Button("Cancel") { dismiss() } } }
         }
     }
