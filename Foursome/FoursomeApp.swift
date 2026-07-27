@@ -9,6 +9,6 @@ struct FoursomeApp: App {
                 .tint(.fairway800)
         }
         .modelContainer(for: [Player.self, Round.self, OpenRound.self,
-                              Friendship.self, PlayerGroup.self])
+                              Friendship.self, PlayerGroup.self, Post.self])
     }
 }

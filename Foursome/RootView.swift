@@ -107,6 +107,13 @@ struct RootView: View {
         g1.joined = [tyler.id.uuidString, ryan.id.uuidString]
         let g2 = OpenRound(hostID: deshawn.id, courseID: "c3", date: .now.addingTimeInterval(5*day), time: "3:40 PM", spots: 2, note: "Twilight nine after work.", visibility: .friends)
         let g3 = OpenRound(hostID: ryan.id, courseID: "c4", date: .now.addingTimeInterval(3*day), time: "10:20 AM", spots: 4, note: "Anyone around? Need two.", visibility: .area)
+        // Marcus is friends with both authors, so signed in as Marcus you see
+        // both; Tyler's club post is invisible to anyone who isn't a member.
+        let p1 = Post(authorID: deshawn.id, text: "New irons showed up. Somebody come watch me hit them badly.", audience: .friends)
+        let p2 = Post(authorID: tyler.id, text: "Greens got aerated this week — play the front if you can.", audience: .club)
+        p1.likes = [marcus.id.uuidString]
+        [p1, p2].forEach { context.insert($0) }
+
         let g4 = OpenRound(hostID: tyler.id, courseID: "c5", date: .now.addingTimeInterval(4*day), time: "9:00 AM", spots: 4, note: "Member guest warm-up. Members only.", visibility: .club)
         context.insert(g1)
         context.insert(g2)
@@ -211,6 +218,8 @@ struct MainTabs: View {
                 .tabItem { Label("Log", systemImage: "square.and.pencil") }
             NavWrap(title: "Open rounds", me: me, showInvite: $showInvite) { OpenRoundsView(me: me) }
                 .tabItem { Label("Open", systemImage: "door.left.hand.open") }
+            NavWrap(title: "Friends", me: me, showInvite: $showInvite) { FriendsView(me: me) }
+                .tabItem { Label("Friends", systemImage: "person.2.fill") }
             NavWrap(title: "Leaderboard", me: me, showInvite: $showInvite) { LeaderboardView(me: me) }
                 .tabItem { Label("Board", systemImage: "trophy.fill") }
         }

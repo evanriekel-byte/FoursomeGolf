@@ -317,6 +317,86 @@ final class OpenRound {
     var areaKey: String? { Course.by(courseID)?.city }
 }
 
+// MARK: - Post (a plain social post, not tied to a round)
+
+/// Who a post reaches. Narrower than `RoundVisibility` on purpose: there's no
+/// "anyone nearby" tier, because a post has no course to be near, and an
+/// unbounded public feed is a moderation problem this app doesn't need yet.
+enum PostAudience: String, Codable, CaseIterable, Identifiable {
+    case friendsOfFriends
+    case club
+    case friends
+    case selected
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .friendsOfFriends: return "Friends of friends"
+        case .club:             return "My club"
+        case .friends:          return "Friends only"
+        case .selected:         return "Specific people"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .friendsOfFriends: return "Your friends, and their friends."
+        case .club:             return "Players whose home course is yours."
+        case .friends:          return "Only people you've added."
+        case .selected:         return "Only the people and groups you pick."
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .friendsOfFriends: return "person.2.wave.2"
+        case .club:             return "building.columns"
+        case .friends:          return "person.2"
+        case .selected:         return "person.crop.circle.badge.checkmark"
+        }
+    }
+
+    /// Posting to "my club" needs a home course to post to.
+    func isAvailable(for author: Player) -> Bool {
+        self != .club || author.homeCourseID != nil
+    }
+
+    static func options(for author: Player) -> [PostAudience] {
+        allCases.filter { $0.isAvailable(for: author) }
+    }
+}
+
+@Model
+final class Post {
+    @Attribute(.unique) var id: UUID
+    var authorID: UUID
+    var text: String
+    var createdAt: Date
+
+    var audienceRaw: String
+    var invitedPlayerIDs: [String]
+    var invitedGroupIDs: [String]
+    var likes: [String]   // player id uuidStrings
+
+    var audience: PostAudience {
+        get { PostAudience(rawValue: audienceRaw) ?? .friends }
+        set { audienceRaw = newValue.rawValue }
+    }
+
+    init(authorID: UUID, text: String, audience: PostAudience = .friends,
+         invitedPlayerIDs: [UUID] = [], invitedGroupIDs: [UUID] = []) {
+        self.id = UUID()
+        self.authorID = authorID
+        self.text = text
+        self.createdAt = .now
+        self.audienceRaw = audience.rawValue
+        self.invitedPlayerIDs = invitedPlayerIDs.map(\.uuidString)
+        self.invitedGroupIDs = invitedGroupIDs.map(\.uuidString)
+        self.likes = []
+    }
+}
+
 // MARK: - Small helpers
 
 extension Array where Element: Hashable {

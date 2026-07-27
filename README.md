@@ -41,9 +41,19 @@ open round goes out to one of five audiences — anyone nearby, friends of
 friends, members at the course, friends only, or hand-picked people and groups —
 and `SocialGraph` resolves who that actually is.
 
-Still missing: **there is no screen for adding a friend.** The graph is
-enforced everywhere but can only be populated by the seed data, so a new player
-has no way to build one. That's the next real gap.
+The Friends tab covers the whole loop: search for someone, send a request,
+accept or decline incoming ones, remove a friend, and build groups out of
+people you've added.
+
+Posts live in the same feed as rounds rather than a separate tab — a sixth tab
+would overflow iOS's tab bar, and a social feed split from the rounds feed
+gives you two half-empty timelines instead of one worth opening. A post carries
+its own audience (friends of friends, club, friends, or hand-picked), resolved
+by the same `SocialGraph` that scopes open rounds.
+
+Rounds themselves stay visible to everyone. Scoping them to friends would
+disagree with the leaderboard, which is global — worth revisiting together, not
+one at a time.
 
 Players can pick a home course at signup, which is optional and also decides who
 counts as a fellow member for club-only invites. Club-only is offered only on

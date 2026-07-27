@@ -3,9 +3,46 @@ import SwiftData
 
 struct FeedView: View {
     let me: Player
+
     @Query(sort: \Round.createdAt, order: .reverse) private var rounds: [Round]
+    @Query(sort: \Post.createdAt, order: .reverse) private var allPosts: [Post]
     @Query private var players: [Player]
+    @Query private var friendships: [Friendship]
+    @Query private var groups: [PlayerGroup]
+
     @State private var expanded: Set<UUID> = []
+    @State private var showComposer = false
+
+    private var graph: SocialGraph {
+        SocialGraph(friendships: friendships, groups: groups, players: players)
+    }
+
+    /// Rounds stay open to everyone — the leaderboard is global, so hiding
+    /// rounds here would disagree with it. Posts are audience-scoped.
+    private var posts: [Post] { graph.visiblePosts(from: allPosts, as: me.id) }
+
+    /// One timeline, newest first, rounds and posts interleaved by time.
+    private enum Item: Identifiable {
+        case round(Round)
+        case post(Post)
+
+        var id: UUID {
+            switch self {
+            case .round(let r): return r.id
+            case .post(let p):  return p.id
+            }
+        }
+        var date: Date {
+            switch self {
+            case .round(let r): return r.createdAt
+            case .post(let p):  return p.createdAt
+            }
+        }
+    }
+
+    private var timeline: [Item] {
+        (rounds.map(Item.round) + posts.map(Item.post)).sorted { $0.date > $1.date }
+    }
 
     private func name(_ id: UUID) -> String { players.first { $0.id == id }?.name ?? "Someone" }
 
@@ -30,18 +67,94 @@ struct FeedView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                if rounds.isEmpty {
+                composerPrompt
+
+                if timeline.isEmpty {
                     EmptyState(systemImage: "figure.golf",
-                               title: "No rounds yet",
-                               message: "Log your first round and it shows up here for your friends.")
+                               title: "Nothing here yet",
+                               message: "Log a round or say something and it shows up here for your friends.")
                 } else {
-                    ForEach(rounds) { round in
-                        roundCard(round)
+                    ForEach(timeline) { item in
+                        switch item {
+                        case .round(let round): roundCard(round)
+                        case .post(let post):   postCard(post)
+                        }
                     }
                     legend
                 }
             }
             .padding(16)
+        }
+        .sheet(isPresented: $showComposer) { PostComposer(me: me) }
+    }
+
+    private var composerPrompt: some View {
+        Button(action: { showComposer = true }) {
+            HStack(spacing: 12) {
+                Avatar(name: me.name)
+                Text("Say something to your friends…")
+                    .font(.subheadline).foregroundStyle(Color.inkSoft)
+                Spacer()
+                Image(systemName: "square.and.pencil").foregroundStyle(Color.fairway800)
+            }
+            .padding(12)
+            .background(Color.card)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.paper200, lineWidth: 1))
+        }
+    }
+
+    private func postCard(_ post: Post) -> some View {
+        let liked = post.likes.contains(me.id.uuidString)
+        return Card {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) {
+                    Avatar(name: name(post.authorID))
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 6) {
+                            Text(name(post.authorID)).font(.headline)
+                            if post.authorID == me.id {
+                                Text("YOU").font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(Color.fairway700)
+                                    .padding(.horizontal, 5).padding(.vertical, 1)
+                                    .background(Color.fairway50).clipShape(Capsule())
+                            }
+                        }
+                        Text(post.createdAt, format: .relative(presentation: .named))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(Color.inkSoft.opacity(0.7))
+                    }
+                    Spacer()
+                    // Only the author needs reminding who they sent it to.
+                    if post.authorID == me.id {
+                        Label(post.audience.label, systemImage: post.audience.systemImage)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(Color.inkSoft)
+                    }
+                }
+
+                Text(post.text).font(.subheadline).foregroundStyle(Color.ink)
+
+                HStack(spacing: 6) {
+                    Button(action: { toggleLike(post) }) {
+                        Label(post.likes.isEmpty ? "Like" : "\(post.likes.count)",
+                              systemImage: liked ? "hand.thumbsup.fill" : "hand.thumbsup")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(liked ? Color.fairway800 : Color.inkSoft)
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                }
+            }
+        }
+    }
+
+    private func toggleLike(_ post: Post) {
+        let mine = me.id.uuidString
+        if post.likes.contains(mine) {
+            post.likes = post.likes.filter { $0 != mine }
+        } else {
+            post.likes = post.likes + [mine]
         }
     }
 

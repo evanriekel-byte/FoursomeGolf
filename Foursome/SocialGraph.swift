@@ -139,6 +139,47 @@ struct SocialGraph {
     }
 }
 
+// MARK: - Posts
+
+extension SocialGraph {
+    /// Every post has a bounded audience — unlike an area-visible round, there
+    /// is no unbounded tier — so this never returns nil.
+    func audience(for post: Post) -> Set<UUID> {
+        let author = post.authorID
+        var set: Set<UUID>
+
+        switch post.audience {
+        case .friendsOfFriends:
+            set = friends(of: author)
+            set.formUnion(friendsOfFriends(of: author))
+
+        case .club:
+            let home = players.first { $0.id == author }?.homeCourseID
+            set = home.map { members(ofCourse: $0) } ?? []
+
+        case .friends:
+            set = friends(of: author)
+
+        case .selected:
+            set = Set(post.invitedPlayerIDs.compactMap(UUID.init(uuidString:)))
+            for groupID in post.invitedGroupIDs.compactMap(UUID.init(uuidString:)) {
+                set.formUnion(members(ofGroup: groupID))
+            }
+        }
+
+        set.insert(author)
+        return set
+    }
+
+    func canView(_ post: Post, as viewer: UUID) -> Bool {
+        post.authorID == viewer || audience(for: post).contains(viewer)
+    }
+
+    func visiblePosts(from posts: [Post], as viewer: UUID) -> [Post] {
+        posts.filter { canView($0, as: viewer) }
+    }
+}
+
 // MARK: - Area helpers
 
 extension SocialGraph {
