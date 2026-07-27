@@ -166,12 +166,20 @@ struct Triangle: Shape {
 
 struct Eyebrow: View {
     let text: String
-    init(_ text: String) { self.text = text }
+    /// Set this on dark turf — the default is tuned for cream, and an outer
+    /// .foregroundStyle can't override the one applied inside here.
+    var tint: Color = Color.fairway700.opacity(0.8)
+
+    init(_ text: String, tint: Color = Color.fairway700.opacity(0.8)) {
+        self.text = text
+        self.tint = tint
+    }
+
     var body: some View {
         Text(text.uppercased())
             .font(.system(.caption2, design: .monospaced))
             .tracking(1.5)
-            .foregroundStyle(Color.fairway700.opacity(0.8))
+            .foregroundStyle(tint)
     }
 }
 

@@ -23,6 +23,7 @@ struct RootView: View {
     private func enter(name: String, homeCourseID: String?) {
         let clean = name.trimmingCharacters(in: .whitespaces)
         guard !clean.isEmpty else { return }
+
         if let existing = players.first(where: { $0.name.lowercased() == clean.lowercased() }) {
             // Signing back in as a seeded player shouldn't wipe their course.
             if let homeCourseID, existing.homeCourseID == nil {
@@ -31,9 +32,16 @@ struct RootView: View {
             meID = existing.id.uuidString
             return
         }
+
         let player = Player(name: clean)
         player.homeCourseID = homeCourseID
         context.insert(player)
+
+        // Save before handing off to `meID`. Without this the new player may
+        // not be in `players` yet when the view re-renders, so `me` resolves to
+        // nil and onboarding just sits there looking broken.
+        try? context.save()
+
         meID = player.id.uuidString
     }
 
@@ -129,6 +137,10 @@ struct OnboardingView: View {
     @State private var name = ""
     @State private var homeCourseID: String? = nil
 
+    private var canEnter: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
     var body: some View {
         ZStack {
             TurfBackground().ignoresSafeArea()
@@ -149,7 +161,7 @@ struct OnboardingView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 36)
 
-                Eyebrow("Get started").foregroundStyle(Color.flagSoft)
+                Eyebrow("Get started", tint: Color.flagSoft)
                     .padding(.bottom, 6)
                 TextField("", text: $name, prompt: Text("Your first name").foregroundStyle(.white.opacity(0.5)))
                     .textInputAutocapitalization(.words)
@@ -158,7 +170,8 @@ struct OnboardingView: View {
                     .background(Color.black.opacity(0.25))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.fairway700, lineWidth: 1))
-                    .submitLabel(.next)
+                    .submitLabel(.go)
+                    .onSubmit { if canEnter { onEnter(name, homeCourseID) } }
 
                 // Optional on purpose: asking for it is useful, requiring it
                 // would be a wall in front of the door.
@@ -188,11 +201,21 @@ struct OnboardingView: View {
 
                 Button(action: { onEnter(name, homeCourseID) }) {
                     Text("Enter the clubhouse")
-                        .font(.headline).foregroundStyle(Color.rough)
+                        .font(.headline)
+                        .foregroundStyle(canEnter ? Color.rough : Color.rough.opacity(0.45))
                         .frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(Color.sand).clipShape(RoundedRectangle(cornerRadius: 12))
+                        .background(canEnter ? Color.sand : Color.sand.opacity(0.35))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+                .disabled(!canEnter)
                 .padding(.top, 12)
+
+                // A name is required, so say so rather than letting the button
+                // silently do nothing.
+                Text(canEnter ? " " : "Enter a first name to continue.")
+                    .font(.caption)
+                    .foregroundStyle(Color.flagSoft)
+                    .padding(.top, 6)
 
                 Text("Runs entirely on your phone for now. Try \"Marcus\" to log in as a seeded player.")
                     .font(.footnote).foregroundStyle(.white.opacity(0.5))
