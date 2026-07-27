@@ -42,10 +42,9 @@ Not modeled yet, from the intended product: an explicit friend graph (add/accept
 
 **Milestone 1 (this): a real app on your phone.** Done. Shows friends the thing exists, and gets you comfortable in SwiftUI.
 
-**Milestone 2: make it multiplayer.** Add real accounts and sync so friends share one clubhouse for real. Two solid backend options:
-- Supabase (Postgres, Auth, Swift SDK). Given your SQL background, the relational model will feel familiar and you'll move fast.
-- Firebase (Firestore, Auth). Slightly quicker to wire up for a social feed, great iOS support.
-Either way, add Sign in with Apple. This is where the friend graph and open-spot matchmaking become genuinely shared.
+**Milestone 2: make it multiplayer.** Add real accounts and sync so friends share one clubhouse for real. **Backend: Firebase** (Firestore + Auth) — chosen because there's already an account on it. Firestore is quick to wire up for a social feed and has solid iOS support. Add Sign in with Apple on top of Firebase Auth. This is where the friend graph and open-spot matchmaking become genuinely shared.
+
+Firestore is a document store, not relational, so the friend graph and invite visibility need to be designed around its query model up front — Firestore can't do joins, and "show me rounds from friends-of-friends" has to be answered by data shape (denormalized audience lists on each document) rather than by a query. Worth settling before writing sync code.
 
 **Milestone 3: get it onto your friends' phones.** TestFlight is how a real, unreleased iOS app reaches people. It needs the Apple Developer Program ($99/year). You can invite up to 10,000 external testers with a link, which is also your real "does it spread" test. After that, App Store submission.
 
