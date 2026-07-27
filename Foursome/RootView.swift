@@ -41,6 +41,16 @@ struct RootView: View {
         let tyler = Player(name: "Tyler")
         let deshawn = Player(name: "Deshawn")
         let ryan = Player(name: "Ryan")
+
+        // Explicit indexes because a computed baseline needs three rounds and
+        // these players are seeded with one or two. A spread from low single
+        // digits to mid-teens is what makes net scoring visibly different from
+        // gross on the very first screen.
+        marcus.handicapIndex = 8.2
+        tyler.handicapIndex = 2.4
+        deshawn.handicapIndex = 16.1
+        ryan.handicapIndex = 5.0
+
         [marcus, tyler, deshawn, ryan].forEach { context.insert($0) }
 
         let day: TimeInterval = 86_400
@@ -172,6 +182,7 @@ struct NavWrap<Content: View>: View {
     let me: Player
     @Binding var showInvite: Bool
     @ViewBuilder var content: Content
+    @State private var showScoring = false
 
     var body: some View {
         NavigationStack {
@@ -181,20 +192,33 @@ struct NavWrap<Content: View>: View {
                     CourseHeader(eyebrow: "Saturday is a group project",
                                  title: "Foursome",
                                  subtitle: title) {
-                        Button(action: { showInvite = true }) {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .padding(9)
-                                .background(.white.opacity(0.15), in: Circle())
+                        HStack(spacing: 8) {
+                            headerButton("slider.horizontal.3", label: "Scoring settings") {
+                                showScoring = true
+                            }
+                            headerButton("square.and.arrow.up", label: "Invite friends") {
+                                showInvite = true
+                            }
                         }
-                        .accessibilityLabel("Invite friends")
                     }
                     content
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
         }
+        .sheet(isPresented: $showScoring) { ScoringSettingsView(me: me) }
+    }
+
+    private func headerButton(_ symbol: String, label: String,
+                              action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(9)
+                .background(.white.opacity(0.15), in: Circle())
+        }
+        .accessibilityLabel(label)
     }
 }
 

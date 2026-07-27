@@ -38,6 +38,34 @@ Everything you tap is real and persists on-device via SwiftData. The one thing t
 
 Not modeled yet, from the intended product: an explicit friend graph (add/accept friends), groups, and invite visibility scoping (public to an area / friends-of-friends / friends only / specific people). Today every player sees every round and every open round. `OpenRound` has no audience field, and there is no `Friendship` or `Group` type.
 
+## Handicaps and GHIN
+
+Scorecards are marked against the player's own baseline by default, not against
+scratch. Marking against par is close to useless for most golfers: a 95-shooter
+sees a double bogey on nearly every hole, and a mark that never varies carries
+no information. Net of a handicap, the same round reads as mostly pars with a
+few bogeys — which is what actually happened.
+
+The baseline comes from one of two places:
+
+1. A handicap index the player types in, or
+2. One worked out from their logged rounds, once there are at least three.
+
+**GHIN cannot be linked automatically.** Handicap data is only available through
+the USGA's licensed partner program, which requires a signed agreement — there
+is no public API and no key to plug in. Apps that display GHIN indexes are
+licensed. Manual entry writes to `Player.handicapIndex`, which is the same field
+a GHIN sync would populate, so if that access is ever granted nothing downstream
+has to change.
+
+The computed number follows the real World Handicap System shape — lowest few of
+your last 20 differentials, with WHS's sliding table so five rounds still yields
+something — but approximates each differential as `strokes - par`. Real WHS uses
+`(113 / slope) * (adjusted gross - course rating)`, and this app carries neither
+slope nor rating. That makes it a sound personal baseline and an invalid official
+index. It must never be presented as a GHIN or WHS handicap, and adding course
+rating and slope is what would close the gap.
+
 ## Roadmap
 
 **Milestone 1 (this): a real app on your phone.** Done. Shows friends the thing exists, and gets you comfortable in SwiftUI.

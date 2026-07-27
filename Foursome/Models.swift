@@ -11,6 +11,12 @@ struct Course: Identifiable, Hashable {
     /// Par for each of the 18 holes, in play order.
     let holePars: [Int]
 
+    /// Difficulty ranking, 1 (hardest) to 18 (easiest). Handicap strokes are
+    /// given out in this order, so a 9-handicap gets one on stroke index 1-9
+    /// and nothing on the rest. Without it, strokes could only be spread evenly
+    /// and a net score would be meaningless on any single hole.
+    let strokeIndex: [Int]
+
     /// Derived, so course par can never drift out of step with the holes.
     var par: Int { holePars.reduce(0, +) }
     var frontNinePar: Int { holePars.prefix(9).reduce(0, +) }
@@ -18,17 +24,23 @@ struct Course: Identifiable, Hashable {
 
     static let all: [Course] = [
         Course(id: "c1", name: "Cobblestone Golf Course", city: "Acworth",
-               holePars: [4, 4, 3, 5, 4, 4, 3, 4, 4,  4, 5, 3, 4, 4, 3, 4, 4, 5]),   // 35 + 36 = 71
+               holePars:    [4, 4, 3, 5, 4, 4, 3, 4, 4,  4, 5, 3, 4, 4, 3, 4, 4, 5],   // 35 + 36 = 71
+               strokeIndex: [5, 11, 17, 1, 7, 13, 15, 3, 9,  6, 2, 18, 10, 4, 16, 12, 8, 14]),
         Course(id: "c2", name: "Cherokee Run", city: "Conyers",
-               holePars: [4, 5, 3, 4, 4, 3, 5, 4, 4,  4, 3, 4, 5, 4, 4, 3, 5, 4]),   // 36 + 36 = 72
+               holePars:    [4, 5, 3, 4, 4, 3, 5, 4, 4,  4, 3, 4, 5, 4, 4, 3, 5, 4],   // 36 + 36 = 72
+               strokeIndex: [3, 9, 17, 7, 1, 15, 11, 5, 13,  8, 18, 4, 12, 2, 10, 16, 14, 6]),
         Course(id: "c3", name: "Towne Lake Hills", city: "Woodstock",
-               holePars: [5, 4, 4, 3, 4, 5, 3, 4, 4,  4, 4, 3, 5, 4, 3, 4, 5, 4]),   // 36 + 36 = 72
+               holePars:    [5, 4, 4, 3, 4, 5, 3, 4, 4,  4, 4, 3, 5, 4, 3, 4, 5, 4],   // 36 + 36 = 72
+               strokeIndex: [7, 1, 11, 17, 5, 9, 15, 3, 13,  4, 10, 18, 8, 2, 16, 12, 14, 6]),
         Course(id: "c4", name: "Bear's Best Atlanta", city: "Suwanee",
-               holePars: [4, 3, 5, 4, 4, 4, 3, 5, 4,  5, 4, 3, 4, 4, 4, 3, 4, 5]),   // 36 + 36 = 72
+               holePars:    [4, 3, 5, 4, 4, 4, 3, 5, 4,  5, 4, 3, 4, 4, 4, 3, 4, 5],   // 36 + 36 = 72
+               strokeIndex: [1, 15, 9, 5, 11, 7, 17, 13, 3,  10, 2, 18, 6, 12, 8, 16, 4, 14]),
         Course(id: "c5", name: "Brookstone", city: "Acworth",
-               holePars: [4, 4, 5, 3, 4, 4, 4, 3, 5,  4, 5, 4, 3, 4, 4, 5, 3, 4]),   // 36 + 36 = 72
+               holePars:    [4, 4, 5, 3, 4, 4, 4, 3, 5,  4, 5, 4, 3, 4, 4, 5, 3, 4],   // 36 + 36 = 72
+               strokeIndex: [9, 3, 13, 17, 1, 7, 11, 15, 5,  2, 14, 6, 18, 4, 10, 12, 16, 8]),
         Course(id: "c6", name: "The Frog at The Georgian", city: "Villa Rica",
-               holePars: [4, 4, 3, 4, 5, 4, 3, 4, 5,  4, 3, 5, 4, 4, 3, 4, 4, 5]),   // 36 + 36 = 72
+               holePars:    [4, 4, 3, 4, 5, 4, 3, 4, 5,  4, 3, 5, 4, 4, 3, 4, 4, 5],   // 36 + 36 = 72
+               strokeIndex: [5, 1, 15, 9, 11, 3, 17, 7, 13,  6, 18, 12, 2, 8, 16, 10, 4, 14]),
     ]
 
     static func by(_ id: String) -> Course? { all.first { $0.id == id } }
@@ -43,11 +55,46 @@ final class Player {
     var handle: String
     var createdAt: Date
 
+    /// A handicap index the player entered by hand. This is the field a GHIN
+    /// sync would populate if we ever get licensed access, so nothing
+    /// downstream has to change when that happens. Nil means "work it out from
+    /// my rounds instead".
+    var handicapIndex: Double?
+
+    /// Whether scores are marked against this player's own baseline or against
+    /// scratch. Stored raw for SwiftData; read through `scoringMode`.
+    var scoringModeRaw: String
+
+    var scoringMode: ScoringMode {
+        get { ScoringMode(rawValue: scoringModeRaw) ?? .personal }
+        set { scoringModeRaw = newValue.rawValue }
+    }
+
     init(name: String) {
         self.id = UUID()
         self.name = name
         self.handle = name.lowercased().replacingOccurrences(of: " ", with: "")
         self.createdAt = .now
+        self.handicapIndex = nil
+        self.scoringModeRaw = ScoringMode.personal.rawValue
+    }
+}
+
+/// What a hole's score gets measured against.
+enum ScoringMode: String, Codable, CaseIterable, Identifiable {
+    /// Net of the player's handicap — a bogey golfer playing to their number
+    /// sees bare pars, not a wall of doubles.
+    case personal
+    /// Classic scratch notation, measured straight against par.
+    case scratch
+
+    var id: String { rawValue }
+
+    var label: String { self == .personal ? "My game" : "Scratch" }
+    var detail: String {
+        self == .personal
+            ? "Marks holes against your handicap, so par means par for you."
+            : "Marks holes against the card, the way a scratch player reads it."
     }
 }
 
@@ -262,6 +309,17 @@ func scoreKind(toPar diff: Int) -> ScoreKind {
     if diff == -1 { return .birdie }
     if diff == 0 { return .par }
     if diff == 1 { return .bogey }
+    return .doublePlus
+}
+
+/// Same idea across a whole round, where one stroke either way is noise. Using
+/// the per-hole thresholds on an 18-hole total would call almost every round a
+/// double.
+func roundScoreKind(toPar diff: Int) -> ScoreKind {
+    if diff <= -3 { return .eagle }
+    if diff <= -1 { return .birdie }
+    if diff == 0 { return .par }
+    if diff <= 3 { return .bogey }
     return .doublePlus
 }
 

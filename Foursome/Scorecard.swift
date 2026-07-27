@@ -12,10 +12,12 @@ import SwiftUI
 
 struct HoleScoreMark: View {
     let strokes: Int
-    let par: Int
+    /// What this hole is measured against — par under scratch scoring, par plus
+    /// strokes received under personal scoring.
+    let reference: Int
     var size: CGFloat = 26
 
-    private var kind: ScoreKind { scoreKind(toPar: strokes - par) }
+    private var kind: ScoreKind { scoreKind(toPar: strokes - reference) }
 
     private var tint: Color {
         switch kind {
@@ -61,12 +63,21 @@ struct HoleScoreMark: View {
 /// Front nine and back nine as two banded rows, the way a paper card reads.
 struct ScorecardTable: View {
     let holeScores: [Int]
-    let holePars: [Int]
+    let context: ScoringContext
+
+    private var references: [Int] { context.netPars }
 
     var body: some View {
         VStack(spacing: 6) {
             nine(range: 0..<9, label: "OUT")
             nine(range: 9..<18, label: "IN")
+            HStack {
+                Text(context.caption)
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(Color.inkSoft.opacity(0.8))
+                Spacer()
+            }
+            .padding(.top, 2)
         }
         .padding(10)
         .background(Color.paper100)
@@ -93,8 +104,8 @@ struct ScorecardTable: View {
             HStack(spacing: 0) {
                 ForEach(range, id: \.self) { i in
                     Group {
-                        if holeScores.indices.contains(i), holePars.indices.contains(i) {
-                            HoleScoreMark(strokes: holeScores[i], par: holePars[i], size: 24)
+                        if holeScores.indices.contains(i), references.indices.contains(i) {
+                            HoleScoreMark(strokes: holeScores[i], reference: references[i], size: 24)
                         } else {
                             Text("–").font(.system(size: 12, design: .monospaced))
                                 .foregroundStyle(Color.inkSoft.opacity(0.5))
@@ -118,7 +129,10 @@ struct ScorecardTable: View {
 /// from zero is the whole ergonomic trick here.
 struct ScorecardEditor: View {
     @Binding var holeScores: [Int]
-    let holePars: [Int]
+    let context: ScoringContext
+
+    private var holePars: [Int] { context.holePars }
+    private var references: [Int] { context.netPars }
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 6)
 
@@ -132,6 +146,7 @@ struct ScorecardEditor: View {
 
     private func cell(_ i: Int) -> some View {
         let par = holePars.indices.contains(i) ? holePars[i] : 4
+        let reference = references.indices.contains(i) ? references[i] : par
         let score = holeScores.indices.contains(i) ? holeScores[i] : par
 
         return VStack(spacing: 3) {
@@ -139,7 +154,7 @@ struct ScorecardEditor: View {
                 .font(.system(size: 9, design: .monospaced))
                 .foregroundStyle(Color.inkSoft.opacity(0.8))
 
-            HoleScoreMark(strokes: score, par: par, size: 28)
+            HoleScoreMark(strokes: score, reference: reference, size: 28)
 
             HStack(spacing: 2) {
                 stepButton("minus") { adjust(i, by: -1) }

@@ -181,9 +181,13 @@ struct ScoreBadge: View {
     let strokes: Int
     let par: Int
     var large: Bool = false
+    /// What the round is measured against. Defaults to par; pass par plus a
+    /// course handicap to read the badge net, so a 95-shooter playing well
+    /// isn't stamped "double bogey" every single round.
+    var reference: Int? = nil
 
-    private var diff: Int { strokes - par }
-    private var kind: ScoreKind { scoreKind(toPar: diff) }
+    private var diff: Int { strokes - (reference ?? par) }
+    private var kind: ScoreKind { roundScoreKind(toPar: diff) }
     private var isCircle: Bool { diff <= -1 }
 
     private var stroke: Color {

@@ -17,9 +17,24 @@ struct LogRoundView: View {
     @State private var strokesText = ""
     @State private var showConfirm = false
 
+    @Query private var allRounds: [Round]
+
     private var course: Course? { Course.by(courseID) }
     private var holePars: [Int] { course?.holePars ?? Array(repeating: 4, count: 18) }
     private var par: Int { course?.par ?? 72 }
+
+    private var scoring: ScoringContext {
+        guard let course else {
+            return ScoringContext(holePars: holePars, netPars: holePars, caption: "vs par", index: nil)
+        }
+        return .make(player: me, course: course, rounds: allRounds)
+    }
+
+    /// Par plus my strokes, for reading the round total net.
+    private var referenceTotal: Int {
+        let nets = scoring.netPars
+        return nets.isEmpty ? par : nets.reduce(0, +)
+    }
 
     private var strokes: Int? {
         switch mode {
@@ -33,6 +48,7 @@ struct LogRoundView: View {
         return s >= 18 && s <= 200
     }
     private var diff: Int? { strokes.map { $0 - par } }
+    private var netDiff: Int? { strokes.map { $0 - referenceTotal } }
 
     var body: some View {
         ScrollView {
@@ -65,7 +81,7 @@ struct LogRoundView: View {
                         Text("Tap a hole to adjust")
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(Color.inkSoft)
-                        ScorecardEditor(holeScores: $holeScores, holePars: holePars)
+                        ScorecardEditor(holeScores: $holeScores, context: scoring)
                             .padding(14)
                             .background(Color.card)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -87,13 +103,21 @@ struct LogRoundView: View {
                 Card {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("TO PAR").font(.system(.caption2, design: .monospaced)).foregroundStyle(Color.inkSoft)
-                            Text(diff.map(toParText) ?? "—")
+                            Text(scoring.index == nil ? "TO PAR" : "TO YOUR NUMBER")
+                                .font(.system(.caption2, design: .monospaced)).foregroundStyle(Color.inkSoft)
+                            Text(netDiff.map(toParText) ?? "—")
                                 .font(.system(.title, design: .monospaced).weight(.semibold))
-                                .foregroundStyle((diff ?? 0) < 0 ? Color.fairway700 : Color.ink)
+                                .foregroundStyle((netDiff ?? 0) < 0 ? Color.fairway700 : Color.ink)
+                            if scoring.index != nil, let d = diff {
+                                Text("\(toParText(d)) to par")
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(Color.inkSoft.opacity(0.8))
+                            }
                         }
                         Spacer()
-                        if valid, let s = strokes { ScoreBadge(strokes: s, par: par, large: true) }
+                        if valid, let s = strokes {
+                            ScoreBadge(strokes: s, par: par, large: true, reference: referenceTotal)
+                        }
                     }
                 }
 

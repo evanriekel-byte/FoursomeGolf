@@ -9,6 +9,24 @@ struct FeedView: View {
 
     private func name(_ id: UUID) -> String { players.first { $0.id == id }?.name ?? "Someone" }
 
+    /// Marked against the card owner's handicap, but only if *I've* asked to
+    /// see net scoring.
+    private func context(for round: Round) -> ScoringContext {
+        guard let course = Course.by(round.courseID) else {
+            return ScoringContext(holePars: [], netPars: [], caption: "vs par", index: nil)
+        }
+        guard let owner = players.first(where: { $0.id == round.playerID }) else {
+            return .par(course)
+        }
+        return .make(player: owner, course: course, rounds: rounds, mode: me.scoringMode)
+    }
+
+    /// Par plus the strokes the owner receives, for reading the total badge net.
+    private func referenceTotal(for round: Round) -> Int {
+        let nets = context(for: round).netPars
+        return nets.isEmpty ? round.par : nets.reduce(0, +)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -33,9 +51,9 @@ struct FeedView: View {
             VStack(alignment: .leading, spacing: 10) {
                 header(round, course: course)
 
-                if round.hasScorecard, let course {
+                if round.hasScorecard {
                     Divider()
-                    scorecardSection(round, course: course)
+                    scorecardSection(round)
                 }
             }
         }
@@ -61,16 +79,18 @@ struct FeedView: View {
             }
             Spacer()
             VStack(spacing: 4) {
-                ScoreBadge(strokes: round.strokes, par: round.par, large: true)
-                Text(toParText(round.toPar))
+                let reference = referenceTotal(for: round)
+                let net = round.strokes - reference
+                ScoreBadge(strokes: round.strokes, par: round.par, large: true, reference: reference)
+                Text(toParText(net))
                     .font(.system(.caption, design: .monospaced).weight(.semibold))
-                    .foregroundStyle(round.toPar < 0 ? Color.fairway700 : Color.inkSoft)
+                    .foregroundStyle(net < 0 ? Color.fairway700 : Color.inkSoft)
             }
         }
     }
 
     @ViewBuilder
-    private func scorecardSection(_ round: Round, course: Course) -> some View {
+    private func scorecardSection(_ round: Round) -> some View {
         let open = expanded.contains(round.id)
 
         Button {
@@ -93,7 +113,7 @@ struct FeedView: View {
         .buttonStyle(.plain)
 
         if open {
-            ScorecardTable(holeScores: round.holeScores, holePars: course.holePars)
+            ScorecardTable(holeScores: round.holeScores, context: context(for: round))
                 .transition(.opacity.combined(with: .move(edge: .top)))
         }
     }
