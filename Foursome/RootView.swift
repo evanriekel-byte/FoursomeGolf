@@ -36,6 +36,10 @@ struct RootView: View {
             }
         }
         .onAppear(perform: start)
+        // Clearing the stored id from anywhere in the app signs you out.
+        .onChange(of: meID) { _, newValue in
+            if newValue.isEmpty { currentPlayer = nil }
+        }
     }
 
     private func start() {
@@ -49,8 +53,7 @@ struct RootView: View {
 
     /// Escape hatch, in case a stored id ever outlives the player it points at.
     private func reset() {
-        for player in fetchPlayers() { context.delete(player) }
-        try? context.save()
+        DemoData.wipe(context)
         meID = ""
         didSeed = false
         status = nil
@@ -97,13 +100,12 @@ struct RootView: View {
 
     // Demo clubhouse so the app feels alive on first run.
     private func seedIfNeeded() {
-        // Gate on the database being empty, not on the flag. `didSeed` lives in
-        // UserDefaults and is written instantly, while the inserts below only
-        // reach disk on SwiftData's next autosave — so killing the app in
-        // between left the flag saying "seeded" over an empty store, and this
-        // guard then skipped seeding forever. Checking the store itself can't
-        // desync that way.
-        guard fetchPlayers().isEmpty else { return }
+        // Gating on "the store is empty" was wrong: a failed sign-in attempt
+        // leaves a real player behind, and after that the store is never empty
+        // again, so the demo clubhouse would never arrive. The flag is the
+        // right gate now that it's only set after the seed is actually saved,
+        // which is what made it untrustworthy before.
+        guard !didSeed else { return }
 
         let marcus = Player(name: "Marcus")
         let tyler = Player(name: "Tyler")
@@ -190,6 +192,22 @@ struct RootView: View {
         } catch {
             status = "Couldn't seed the clubhouse: \(error.localizedDescription)"
         }
+    }
+}
+
+// MARK: - Demo data
+
+/// Wiping every model in one place, so a reset can't leave orphaned rounds or
+/// friendships pointing at players that no longer exist.
+enum DemoData {
+    static func wipe(_ context: ModelContext) {
+        for player in (try? context.fetch(FetchDescriptor<Player>())) ?? [] { context.delete(player) }
+        for round in (try? context.fetch(FetchDescriptor<Round>())) ?? [] { context.delete(round) }
+        for open in (try? context.fetch(FetchDescriptor<OpenRound>())) ?? [] { context.delete(open) }
+        for edge in (try? context.fetch(FetchDescriptor<Friendship>())) ?? [] { context.delete(edge) }
+        for group in (try? context.fetch(FetchDescriptor<PlayerGroup>())) ?? [] { context.delete(group) }
+        for post in (try? context.fetch(FetchDescriptor<Post>())) ?? [] { context.delete(post) }
+        try? context.save()
     }
 }
 

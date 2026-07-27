@@ -5,7 +5,11 @@ import SwiftData
 struct ScoringSettingsView: View {
     let me: Player
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
     @Query private var rounds: [Round]
+
+    @AppStorage("meID") private var meID: String = ""
+    @AppStorage("didSeed") private var didSeed: Bool = false
 
     @State private var indexText = ""
     @State private var mode: ScoringMode = .personal
@@ -28,6 +32,7 @@ struct ScoringSettingsView: View {
                             baselineSummary
                         }
                         ghinNote
+                        resetSection
                     }
                     .padding(20)
                 }
@@ -122,6 +127,34 @@ struct ScoringSettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.paper100)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// Temporary, while the app is still being shaken out. Failed sign-in
+    /// attempts can leave stray players behind, and there's otherwise no way to
+    /// clear them or get the demo clubhouse back without deleting the app.
+    private var resetSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Eyebrow("Start over")
+            Text("Deletes everything on this phone and rebuilds the demo clubhouse, then returns you to the sign-in screen.")
+                .font(.caption).foregroundStyle(Color.inkSoft)
+            Button(role: .destructive, action: resetEverything) {
+                Text("Reset all data")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.overPar)
+                    .frame(maxWidth: .infinity).padding(.vertical, 12)
+                    .background(Color.overPar.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.overPar.opacity(0.4), lineWidth: 1))
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    private func resetEverything() {
+        DemoData.wipe(context)
+        didSeed = false
+        meID = ""          // RootView watches this and signs out
+        dismiss()
     }
 
     private func save() {
