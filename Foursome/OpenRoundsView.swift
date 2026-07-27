@@ -164,7 +164,9 @@ struct PostOpenRoundSheet: View {
     @State private var visibility: RoundVisibility = .friends
 
     private var selectedCourse: Course? { Course.by(courseID) }
-    private var visibilityOptions: [RoundVisibility] { .options(for: selectedCourse) }
+    private var visibilityOptions: [RoundVisibility] {
+        RoundVisibility.options(for: selectedCourse)
+    }
 
     private let dayOptions = [0, 1, 2, 3, 5, 7]
     private func dayLabel(_ d: Int) -> String {
