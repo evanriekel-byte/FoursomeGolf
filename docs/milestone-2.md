@@ -32,21 +32,21 @@ all. Local demo mode survives the cutover as the offline/dev configuration.
 
 ## Identity
 
-**Anonymous Firebase Auth first, Sign in with Apple linked later.**
+**Sign in with Apple from day one.** The Developer Program membership already
+exists, so the entitlement is available now — there's no reason to ship
+device-bound accounts and build a linking flow later.
 
-At first launch the app signs in anonymously and gets a stable uid; onboarding
-writes the display name to `players/{uid}`. This is the same UX the app has
-today — type a name, enter the clubhouse — with zero extra friction.
+Onboarding becomes: tap Sign in with Apple, then confirm your name. Apple only
+hands over the full name on the first authorization, so the app captures it
+then and prefills the existing name field — the player still chooses what the
+clubhouse calls them, same as today. The resulting uid survives reinstalls and
+moves across devices, which is exactly what TestFlight testers will need in
+Milestone 3.
 
-Why not Sign in with Apple immediately: the entitlement isn't available on a
-free personal team. It arrives with the $99 Apple Developer Program enrollment,
-which Milestone 3 (TestFlight) needs anyway. When that happens, the anonymous
-account links a Sign in with Apple credential via `user.link(with:)` — same
-uid, all data kept, and the account stops being device-bound.
-
-Documented risk until then: an anonymous account lives on one device, and
-deleting the app deletes the account. Acceptable for the friends-testing
-window; the Sign in with Apple link is the durable fix.
+Anonymous auth survives only as a development convenience (simulator sessions
+without an Apple ID), compiled out of release builds. Real users never need
+account linking, though `user.link(with:)` remains the path if a dev account
+ever needs promoting to a real one.
 
 The demo clubhouse never syncs. Cloud mode doesn't seed Marcus and Tyler — the
 real clubhouse is the people you invite. On first cloud sign-in the app offers
@@ -137,8 +137,10 @@ because cloud mode defaults off.
 Each phase leaves the app shippable and CI green.
 
 - **A — bootstrap.** Firebase SDK via SPM (FirebaseAuth, FirebaseFirestore),
-  a `Cloud` bootstrap that no-ops without config, anonymous sign-in behind the
-  flag. App behavior unchanged when unconfigured.
+  a `Cloud` bootstrap that no-ops without config, Sign in with Apple behind the
+  flag (the entitlement and `DEVELOPMENT_TEAM` wire into project.yml here,
+  with an anonymous fallback for simulator development). App behavior
+  unchanged when unconfigured.
 - **B — players and rounds.** First end-to-end sync: profile and round
   repositories, feed and leaderboard reading cloud data in cloud mode, the
   one-time local-rounds migration prompt.
@@ -154,7 +156,8 @@ Each phase leaves the app shippable and CI green.
 1. Firebase console: create the project, add an iOS app with bundle id
    `com.foursome.app`, download `GoogleService-Info.plist` (it stays out of
    git).
-2. Enable **Anonymous** authentication, and create the Firestore database.
-3. Decide timing on the $99 Developer Program — it unlocks Sign in with Apple
-   linking here and TestFlight in Milestone 3. Nothing in phases A–E blocks on
-   it.
+2. Enable **Apple** as a sign-in provider (plus **Anonymous**, for the dev
+   fallback), and create the Firestore database.
+3. Hand over the Developer Program team ID so `DEVELOPMENT_TEAM` can go into
+   project.yml — Xcode then registers the app ID and the Sign in with Apple
+   capability automatically when it first builds to a device.
