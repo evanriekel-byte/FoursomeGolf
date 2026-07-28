@@ -3,6 +3,7 @@ import SwiftData
 
 struct FeedView: View {
     let me: Player
+    @Environment(\.modelContext) private var context
 
     @Query(sort: \Round.createdAt, order: .reverse) private var rounds: [Round]
     @Query(sort: \Post.createdAt, order: .reverse) private var allPosts: [Post]
@@ -12,6 +13,7 @@ struct FeedView: View {
 
     @State private var expanded: Set<UUID> = []
     @State private var showComposer = false
+    @State private var roundToDelete: Round?
 
     /// Shared with the leaderboard, so both screens show the same population.
     @AppStorage("audienceScope") private var scopeRaw = AudienceScope.everyone.rawValue
@@ -112,6 +114,16 @@ struct FeedView: View {
             .padding(16)
         }
         .sheet(isPresented: $showComposer) { PostComposer(me: me) }
+        .confirmationDialog("Delete this round?",
+                            isPresented: Binding(
+                                get: { roundToDelete != nil },
+                                set: { if !$0 { roundToDelete = nil } }),
+                            titleVisibility: .visible,
+                            presenting: roundToDelete) { round in
+            Button("Delete round", role: .destructive) { delete(round) }
+        } message: { round in
+            Text("Takes your \(round.strokes) at \(Course.by(round.courseID)?.name ?? "an unknown course") off the feed and the leaderboard. There's no undo.")
+        }
     }
 
     private var composerPrompt: some View {
@@ -186,7 +198,7 @@ struct FeedView: View {
 
     private func roundCard(_ round: Round) -> some View {
         let course = Course.by(round.courseID)
-        return Card {
+        let card = Card {
             VStack(alignment: .leading, spacing: 10) {
                 header(round, course: course)
 
@@ -196,6 +208,30 @@ struct FeedView: View {
                 }
             }
         }
+
+        // Long-press to delete — a mistyped score shouldn't be permanent. Only
+        // your own card gets the menu, so other people's rounds take no press.
+        return Group {
+            if round.playerID == me.id {
+                card.contextMenu {
+                    Button(role: .destructive) {
+                        roundToDelete = round
+                    } label: {
+                        Label("Delete round", systemImage: "trash")
+                    }
+                }
+            } else {
+                card
+            }
+        }
+    }
+
+    /// Deletes are the one mutation worth saving eagerly: autosave dropping a
+    /// like is noise, autosave resurrecting a deleted round reads as a bug.
+    private func delete(_ round: Round) {
+        expanded.remove(round.id)
+        context.delete(round)
+        try? context.save()
     }
 
     private func header(_ round: Round, course: Course?) -> some View {
