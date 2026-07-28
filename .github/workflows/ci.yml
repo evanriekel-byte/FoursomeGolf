@@ -1,0 +1,34 @@
+# Builds the app and runs the unit tests on every push. The Xcode project is
+# generated fresh from project.yml each run, so CI proves the spec — there is
+# no checked-in .xcodeproj to drift out of date.
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        run: xcodegen generate
+
+      - name: Build and run tests
+        run: |
+          xcodebuild test \
+            -project Foursome.xcodeproj \
+            -scheme Foursome \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            CODE_SIGNING_ALLOWED=NO
