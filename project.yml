@@ -33,3 +33,35 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+
+  # Unit tests, hosted in the app so they can @testable import Foursome.
+  FoursomeTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: FoursomeTests
+    dependencies:
+      - target: Foursome
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.9"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Foursome.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Foursome"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+# XcodeGen only shares schemes that are spelled out, and xcodebuild on CI needs
+# a shared scheme to run the tests.
+schemes:
+  Foursome:
+    build:
+      targets:
+        Foursome: all
+        FoursomeTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - FoursomeTests
+    archive:
+      config: Release
