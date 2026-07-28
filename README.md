@@ -131,9 +131,9 @@ rating and slope is what would close the gap.
 
 **Milestone 1.5: make it trustworthy.** Done. Unit tests over the social graph, handicap engine, and course table; CI on every push; and the lifecycle gaps closed — delete a mistyped round, backdate one logged late, cancel an open round, decline a join request, and expire stale tee times.
 
-**Milestone 2: make it multiplayer.** Add real accounts and sync so friends share one clubhouse for real. **Backend: Firebase** (Firestore + Auth) — chosen because there's already an account on it. Firestore is quick to wire up for a social feed and has solid iOS support. Add Sign in with Apple on top of Firebase Auth. This is where the friend graph and open-spot matchmaking become genuinely shared.
+**Milestone 2: make it multiplayer.** Add real accounts and sync so friends share one clubhouse for real. **Backend: Firebase** (Firestore + Auth) — chosen because there's already an account on it. Firestore is quick to wire up for a social feed and has solid iOS support. Auth starts anonymous — no friction, and it works on a free Apple team — and links Sign in with Apple once the Developer Program enrollment exists. This is where the friend graph and open-spot matchmaking become genuinely shared.
 
-Firestore is a document store, not relational, so the friend graph and invite visibility need to be designed around its query model up front — Firestore can't do joins, and "show me rounds from friends-of-friends" has to be answered by data shape (denormalized audience lists on each document) rather than by a query. Worth settling before writing sync code.
+Firestore is a document store, not relational, so the friend graph and invite visibility need to be designed around its query model up front — Firestore can't do joins, and "show me rounds from friends-of-friends" has to be answered by data shape (denormalized audience lists on each document) rather than by a query. That design is settled in [`docs/milestone-2.md`](docs/milestone-2.md).
 
 **Milestone 3: get it onto your friends' phones.** TestFlight is how a real, unreleased iOS app reaches people. It needs the Apple Developer Program ($99/year). You can invite up to 10,000 external testers with a link, which is also your real "does it spread" test. After that, App Store submission.
 
