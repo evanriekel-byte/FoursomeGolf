@@ -10,15 +10,21 @@ struct OpenRoundsView: View {
     @Query private var groups: [PlayerGroup]
     @Query private var playedRounds: [Round]
     @State private var showPost = false
+    @State private var roundToCancel: OpenRound?
 
     private var graph: SocialGraph {
         SocialGraph(friendships: friendships, groups: groups, players: players)
     }
 
-    /// Only the rounds this player is allowed to see.
+    /// Only the rounds this player is allowed to see, with finished tee times
+    /// dropped. A round stays up through its whole day — day-of coordination
+    /// is the point — and falls off at midnight, instead of a stale Tuesday
+    /// round sitting at the top of the list forever.
     private var rounds: [OpenRound] {
         let areas = SocialGraph.areas(forPlayer: me.id, rounds: playedRounds, openRounds: allRounds)
+        let today = Calendar.current.startOfDay(for: .now)
         return graph.visibleRounds(from: allRounds, as: me.id, viewerAreas: areas)
+            .filter { $0.date >= today }
     }
 
     private func name(_ idString: String) -> String {
@@ -49,6 +55,17 @@ struct OpenRoundsView: View {
             .padding(16)
         }
         .sheet(isPresented: $showPost) { PostOpenRoundSheet(me: me) }
+        .confirmationDialog("Cancel this round?",
+                            isPresented: Binding(
+                                get: { roundToCancel != nil },
+                                set: { if !$0 { roundToCancel = nil } }),
+                            titleVisibility: .visible,
+                            presenting: roundToCancel) { round in
+            Button("Cancel the round", role: .destructive) { cancel(round) }
+            Button("Keep it", role: .cancel) {}
+        } message: { round in
+            Text("Removes it for everyone — \(round.joined.count) in the group so far. There's no undo.")
+        }
     }
 
     private func openCard(_ round: OpenRound) -> some View {
@@ -57,7 +74,7 @@ struct OpenRoundsView: View {
         let joined = round.joined.contains(me.id.uuidString)
         let pending = round.pending.contains(me.id.uuidString)
 
-        return Card {
+        let card = Card {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -124,17 +141,48 @@ struct OpenRoundsView: View {
                     Divider()
                     Eyebrow("Requests to join")
                     ForEach(round.pending, id: \.self) { id in
-                        HStack {
+                        HStack(spacing: 12) {
                             Avatar(name: name(id))
                             Text(name(id)).font(.subheadline.weight(.medium))
                             Spacer()
-                            Button(action: { approve(round, id) }) {
-                                Label("Approve", systemImage: "checkmark")
-                                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.fairway800)
+                            // Same pair as a friend request: decline is an
+                            // outlined x, approve a filled check.
+                            Button(action: { decline(round, id) }) {
+                                Image(systemName: "xmark")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.inkSoft)
+                                    .frame(width: 34, height: 34)
+                                    .overlay(Circle().stroke(Color.paper200, lineWidth: 1))
                             }
+                            .accessibilityLabel("Decline \(name(id))")
+                            Button(action: { approve(round, id) }) {
+                                Image(systemName: "checkmark")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 34, height: 34)
+                                    .background(round.openSpots > 0 ? Color.fairway800 : Color.paper200)
+                                    .clipShape(Circle())
+                            }
+                            .disabled(round.openSpots == 0)
+                            .accessibilityLabel("Approve \(name(id))")
                         }
                     }
                 }
+            }
+        }
+
+        // Long-press to call the whole thing off — host only.
+        return Group {
+            if isHost {
+                card.contextMenu {
+                    Button(role: .destructive) {
+                        roundToCancel = round
+                    } label: {
+                        Label("Cancel this round", systemImage: "trash")
+                    }
+                }
+            } else {
+                card
             }
         }
     }
@@ -145,9 +193,26 @@ struct OpenRoundsView: View {
         round.pending = round.pending + [mine]
     }
 
+    /// A full group can't take another player, so approving past capacity is
+    /// refused here as well as disabled in the UI.
     private func approve(_ round: OpenRound, _ idString: String) {
+        guard round.openSpots > 0 else { return }
         round.pending = round.pending.filter { $0 != idString }
         round.joined = round.joined + [idString]
+    }
+
+    /// Drops the request outright, the same shape as declining a friend
+    /// request — the other player just sees the spot still open and can ask
+    /// again.
+    private func decline(_ round: OpenRound, _ idString: String) {
+        round.pending = round.pending.filter { $0 != idString }
+    }
+
+    /// Saved eagerly rather than left to autosave — a cancelled round coming
+    /// back after a relaunch reads as a bug.
+    private func cancel(_ round: OpenRound) {
+        context.delete(round)
+        try? context.save()
     }
 }
 
