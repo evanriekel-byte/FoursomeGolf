@@ -17,6 +17,11 @@ struct LogRoundView: View {
     @State private var strokesText = ""
     @State private var showConfirm = false
 
+    /// When the round was played, defaulting to today. The feed orders by
+    /// *log* time either way, so backdating puts a round in the right
+    /// leaderboard week without resurfacing it at the top of the feed.
+    @State private var playedOn: Date = .now
+
     @Query private var allRounds: [Round]
 
     private var course: Course? { Course.by(courseID) }
@@ -70,6 +75,20 @@ struct LogRoundView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.paper200, lineWidth: 1))
                 }
+
+                HStack {
+                    Text("Played").font(.subheadline.weight(.medium)).foregroundStyle(Color.inkSoft)
+                    Spacer()
+                    // Capped at today — the leaderboard would happily rank a
+                    // round from next Saturday.
+                    DatePicker("Played on", selection: $playedOn, in: ...Date.now,
+                               displayedComponents: .date)
+                        .labelsHidden()
+                }
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(Color.card)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.paper200, lineWidth: 1))
 
                 Picker("How", selection: $mode) {
                     ForEach(Mode.allCases) { Text($0.label).tag($0) }
@@ -169,13 +188,16 @@ struct LogRoundView: View {
         let round: Round
         switch mode {
         case .scorecard:
-            round = Round(playerID: me.id, courseID: courseID, holeScores: holeScores, par: par)
+            round = Round(playerID: me.id, courseID: courseID, holeScores: holeScores,
+                          par: par, date: playedOn)
         case .total:
-            round = Round(playerID: me.id, courseID: courseID, strokes: s, par: par)
+            round = Round(playerID: me.id, courseID: courseID, strokes: s,
+                          par: par, date: playedOn)
         }
         context.insert(round)
 
         strokesText = ""
+        playedOn = .now
         resetCard()
         withAnimation { showConfirm = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
