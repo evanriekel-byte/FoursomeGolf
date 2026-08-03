@@ -14,6 +14,7 @@ struct FeedView: View {
     @State private var expanded: Set<UUID> = []
     @State private var showComposer = false
     @State private var roundToDelete: Round?
+    @State private var saveError: String?
 
     /// Shared with the leaderboard, so both screens show the same population.
     @AppStorage("audienceScope") private var scopeRaw = AudienceScope.everyone.rawValue
@@ -124,6 +125,13 @@ struct FeedView: View {
         } message: { round in
             Text("Takes your \(round.strokes) at \(Course.by(round.courseID)?.name ?? "an unknown course") off the feed and the leaderboard. There's no undo.")
         }
+        .alert("Couldn't delete that round",
+               isPresented: Binding(get: { saveError != nil },
+                                    set: { if !$0 { saveError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(saveError ?? "")
+        }
     }
 
     private var composerPrompt: some View {
@@ -228,10 +236,21 @@ struct FeedView: View {
 
     /// Deletes are the one mutation worth saving eagerly: autosave dropping a
     /// like is noise, autosave resurrecting a deleted round reads as a bug.
+    ///
+    /// A failed save is rolled back rather than swallowed. Without the
+    /// rollback the round stays deleted in memory and the card disappears, so
+    /// the delete looks like it worked right up until the next launch brings
+    /// the round back.
     private func delete(_ round: Round) {
-        expanded.remove(round.id)
+        let id = round.id
         context.delete(round)
-        try? context.save()
+        do {
+            try context.save()
+            expanded.remove(id)
+        } catch {
+            context.rollback()
+            saveError = error.localizedDescription
+        }
     }
 
     private func header(_ round: Round, course: Course?) -> some View {

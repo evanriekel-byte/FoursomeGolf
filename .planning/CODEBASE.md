@@ -112,26 +112,33 @@ back empty:
 |-------|-------|
 | TODO / FIXME / HACK / XXX | **0** |
 | Debug `print(` in app target | **0** |
-| `try!` / `as!` force unwraps | **0** |
+| `try!` / `as!` | **0** |
+| Force unwraps on expressions | 2 |
 | Files with doc comments | 13 of 14 |
+
+The two force unwraps are both `Course.all.first!` — `LogRoundView.swift:14` and
+`OpenRoundsView.swift:242` — as the default `@State` course. `Course.all` is a
+hardcoded non-empty table and `testEveryCourseCardIsCoherent` asserts it stays
+that way, so these are safe today. They become a crash the moment the course
+list is loaded rather than compiled in.
 
 `Models.swift` carries 60 doc-comment lines and `Handicap.swift` 45 — the
 domain logic is genuinely documented, not just annotated.
 
 ### Testing
-- Unit tests: 3 files, 58 test functions, XCTest.
+- Unit tests: 4 files, 71 test functions, XCTest.
 - UI tests: none.
-- **What is covered:** pure logic only — `Handicap` (22 tests), `SocialGraph`
-  (24 tests), and the pure helpers in `Models` (12 tests: course coherence,
-  score kinds, audience rules, period boundaries).
-- **What is not covered:** the SwiftData layer and every view. The tests
-  never construct a `ModelContainer` or `ModelContext` — there is no
-  in-memory store fixture, so `@Model` persistence, queries, and the
-  view-to-store writes are untested.
-
-Coverage is therefore high on the ~820 LOC of pure logic and near zero on
-the ~2,800 LOC of views and persistence. A raw "coverage %" would be
-misleading; the split is what matters.
+- **Pure logic** — `Handicap` (22 tests), `SocialGraph` (24 tests), and the
+  pure helpers in `Models` (12 tests: course coherence, score kinds,
+  audience rules, period boundaries).
+- **Store layer** — `StoreTests.swift` (13 tests) runs against an in-memory
+  `ModelContainer`: persistence round trips, the raw-value bridges
+  (`scoringMode`, `visibility`), the array-backed attributes (`holeScores`,
+  `joined`, `pending`), the delete/cancel mutation paths, `rollback`
+  recovery, and `DemoData.wipe`.
+- **Not covered:** the views. Nothing drives SwiftUI — no UI tests, no
+  snapshot tests — so the ~2,800 LOC of view code is exercised only
+  indirectly through the models it writes.
 
 ## Patterns Identified
 
@@ -150,14 +157,14 @@ misleading; the split is what matters.
   spec so `xcodebuild test` works headlessly.
 
 ### Areas for improvement
-- **Silent save failures.** Three of the five `context.save()` calls use
-  `try?` and drop the error: `FeedView.swift:234`,
-  `OpenRoundsView.swift:215`, `RootView.swift:239`. A failed write is
-  invisible to the user — the UI will look like it worked. The other two
-  (`RootView.swift:98`, `RootView.swift:220`) do use `try`.
-- **No SwiftData test fixture.** An in-memory `ModelContainer` would let the
-  model layer and the mutation paths be tested with the same rigor the pure
-  logic already gets. This is the single highest-value gap.
+- ~~**Silent save failures.**~~ Fixed. All five `context.save()` calls now
+  surface their error; the two destructive ones roll back so a failed delete
+  can't leave the row gone from the screen but present in the store. The
+  swallowed *fetches* turned out to be the worse half — `fetchPlayers()` and
+  `DemoData.wipe` both fell back to `[]`, which reads as "empty store" and
+  would have seeded a duplicate demo clubhouse or orphaned every model the
+  wipe skipped. Both now throw.
+- ~~**No SwiftData test fixture.**~~ Fixed — `FoursomeTests/StoreTests.swift`.
 - **Accessibility is thin.** 5 accessibility modifiers across the whole app,
   in 3 files. `Scorecard` — a dense numeric grid, the hardest thing here for
   VoiceOver — has 2. This is also a compliance concern under the EU
@@ -177,12 +184,14 @@ misleading; the split is what matters.
 ## Recommendations
 
 ### Before continuing development
-1. [ ] Replace the three `try?` saves with real error handling and a
+1. [x] Replace the three `try?` saves with real error handling and a
        user-visible failure path.
-2. [ ] Add an in-memory `ModelContainer` fixture and cover the `@Model`
+2. [x] Add an in-memory `ModelContainer` fixture and cover the `@Model`
        layer and the mutation paths.
 3. [ ] Run `/apple:accessibility` — the audit is cheap and the current
        surface is close to bare.
+4. [ ] Split `RootView.swift` (477 LOC, four responsibilities) and give the
+       target a directory structure.
 
 ### Integration with SwiftShip
 This repo has no `.planning/` history and no `APP.md`; this file is the

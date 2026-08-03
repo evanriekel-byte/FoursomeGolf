@@ -11,6 +11,7 @@ struct OpenRoundsView: View {
     @Query private var playedRounds: [Round]
     @State private var showPost = false
     @State private var roundToCancel: OpenRound?
+    @State private var saveError: String?
 
     private var graph: SocialGraph {
         SocialGraph(friendships: friendships, groups: groups, players: players)
@@ -65,6 +66,13 @@ struct OpenRoundsView: View {
             Button("Keep it", role: .cancel) {}
         } message: { round in
             Text("Removes it for everyone — \(round.joined.count) in the group so far. There's no undo.")
+        }
+        .alert("Couldn't cancel that round",
+               isPresented: Binding(get: { saveError != nil },
+                                    set: { if !$0 { saveError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(saveError ?? "")
         }
     }
 
@@ -210,9 +218,17 @@ struct OpenRoundsView: View {
 
     /// Saved eagerly rather than left to autosave — a cancelled round coming
     /// back after a relaunch reads as a bug.
+    ///
+    /// Rolled back on failure so the round returns to the list instead of
+    /// vanishing from a screen everyone else can still see it on.
     private func cancel(_ round: OpenRound) {
         context.delete(round)
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            saveError = error.localizedDescription
+        }
     }
 }
 

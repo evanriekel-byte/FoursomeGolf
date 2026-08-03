@@ -18,8 +18,13 @@ struct RootView: View {
 
     /// Reads the store directly. `@Query` is a view-update mechanism; this is a
     /// plain read, and it doesn't depend on the query refreshing.
-    private func fetchPlayers() -> [Player] {
-        (try? context.fetch(FetchDescriptor<Player>())) ?? []
+    ///
+    /// Throws rather than falling back to `[]`. An empty result is the answer
+    /// to "is the clubhouse seeded?", so a failed fetch that reported `[]`
+    /// would look like an empty store and seed a *second* demo clubhouse on
+    /// top of the first.
+    private func fetchPlayers() throws -> [Player] {
+        try context.fetch(FetchDescriptor<Player>())
     }
 
     var body: some View {
@@ -45,9 +50,11 @@ struct RootView: View {
     private func start() {
         seedIfNeeded()
 
-        // Restore a previous session.
+        // Restore a previous session. A failed read leaves onboarding on
+        // screen, which is recoverable — signing in again finds the existing
+        // player rather than making a duplicate.
         guard currentPlayer == nil, !meID.isEmpty else { return }
-        currentPlayer = fetchPlayers().first { $0.id.uuidString == meID }
+        currentPlayer = (try? fetchPlayers())?.first { $0.id.uuidString == meID }
     }
 
     /// Escape hatch, in case a stored id ever outlives the player it points at.
@@ -64,7 +71,13 @@ struct RootView: View {
         currentPlayer = nil
 
         DispatchQueue.main.async {
-            DemoData.wipe(context)
+            do {
+                try DemoData.wipe(context)
+            } catch {
+                context.rollback()
+                status = "Couldn't reset the clubhouse: \(error.localizedDescription)"
+                return
+            }
             seedIfNeeded()
         }
     }
@@ -77,9 +90,20 @@ struct RootView: View {
         // Otherwise "Marcus" silently creates a second, empty Marcus.
         seedIfNeeded()
 
+        // Bail rather than guess. Treating a failed read as "no such player"
+        // is what creates the second, empty Marcus the comment above warns
+        // about.
+        let match: Player?
+        do {
+            match = try fetchPlayers().first { $0.name.lowercased() == clean.lowercased() }
+        } catch {
+            status = "Couldn't reach the clubhouse: \(error.localizedDescription)"
+            return
+        }
+
         let player: Player
 
-        if let existing = fetchPlayers().first(where: { $0.name.lowercased() == clean.lowercased() }) {
+        if let existing = match {
             // Signing back in as a seeded player shouldn't wipe their course.
             if let homeCourseID, existing.homeCourseID == nil {
                 existing.homeCourseID = homeCourseID
@@ -121,7 +145,19 @@ struct RootView: View {
         // trusting a flag stored somewhere else. "Is the store empty" was wrong
         // too — a stray sign-in leaves a real player behind and blocks seeding
         // forever. Only demo players count.
-        guard fetchPlayers().allSatisfy({ !$0.isDemo }) else { return }
+        //
+        // A failed read has to stop the seed, not run it: the fallback that
+        // reported `[]` looked exactly like an empty store, so the one error
+        // this guard exists to prevent would have produced a duplicate
+        // clubhouse instead of skipping.
+        let existing: [Player]
+        do {
+            existing = try fetchPlayers()
+        } catch {
+            status = "Couldn't reach the clubhouse: \(error.localizedDescription)"
+            return
+        }
+        guard existing.allSatisfy({ !$0.isDemo }) else { return }
 
         let marcus = Player(name: "Marcus")
         let tyler = Player(name: "Tyler")
@@ -229,14 +265,18 @@ struct RootView: View {
 /// Wiping every model in one place, so a reset can't leave orphaned rounds or
 /// friendships pointing at players that no longer exist.
 enum DemoData {
-    static func wipe(_ context: ModelContext) {
-        for player in (try? context.fetch(FetchDescriptor<Player>())) ?? [] { context.delete(player) }
-        for round in (try? context.fetch(FetchDescriptor<Round>())) ?? [] { context.delete(round) }
-        for open in (try? context.fetch(FetchDescriptor<OpenRound>())) ?? [] { context.delete(open) }
-        for edge in (try? context.fetch(FetchDescriptor<Friendship>())) ?? [] { context.delete(edge) }
-        for group in (try? context.fetch(FetchDescriptor<PlayerGroup>())) ?? [] { context.delete(group) }
-        for post in (try? context.fetch(FetchDescriptor<Post>())) ?? [] { context.delete(post) }
-        try? context.save()
+    /// Throws rather than swallowing, so a reset that only half-emptied the
+    /// store can't be reseeded on top of. `try?` on the fetches was the worse
+    /// half: a failed fetch reads as "no rows", so those models were silently
+    /// skipped and left behind as orphans.
+    static func wipe(_ context: ModelContext) throws {
+        for player in try context.fetch(FetchDescriptor<Player>()) { context.delete(player) }
+        for round in try context.fetch(FetchDescriptor<Round>()) { context.delete(round) }
+        for open in try context.fetch(FetchDescriptor<OpenRound>()) { context.delete(open) }
+        for edge in try context.fetch(FetchDescriptor<Friendship>()) { context.delete(edge) }
+        for group in try context.fetch(FetchDescriptor<PlayerGroup>()) { context.delete(group) }
+        for post in try context.fetch(FetchDescriptor<Post>()) { context.delete(post) }
+        try context.save()
     }
 }
 
