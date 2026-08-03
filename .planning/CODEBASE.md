@@ -126,12 +126,13 @@ list is loaded rather than compiled in.
 domain logic is genuinely documented, not just annotated.
 
 ### Testing
-- Unit tests: 4 files, 71 test functions, XCTest.
+- Unit tests: 4 files, 70 test functions, XCTest. Green on CI (macos-15,
+  iPhone 16 simulator).
 - UI tests: none.
 - **Pure logic** — `Handicap` (22 tests), `SocialGraph` (24 tests), and the
   pure helpers in `Models` (12 tests: course coherence, score kinds,
   audience rules, period boundaries).
-- **Store layer** — `StoreTests.swift` (13 tests) runs against an in-memory
+- **Store layer** — `StoreTests.swift` (12 tests) runs against an in-memory
   `ModelContainer`: persistence round trips, the raw-value bridges
   (`scoringMode`, `visibility`), the array-backed attributes (`holeScores`,
   `joined`, `pending`), the delete/cancel mutation paths, `rollback`
